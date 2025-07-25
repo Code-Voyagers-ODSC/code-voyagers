@@ -1,0 +1,7 @@
+fastapi
+uvicorn
+requests
+openai==0.28
+python-dotenv
+ddgs
+google-generativeai
