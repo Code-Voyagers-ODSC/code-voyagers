@@ -8,21 +8,19 @@ from google.adk.tools.long_running_tool import LongRunningFunctionTool
 from google.adk.runners import Runner
 from google.adk.sessions import InMemorySessionService
 from google.genai.types import Content, Part
+from google.genai import types  # Added missing import
 import asyncio
 from loguru import logger
+import time
+import re
 
-from google.adk.agents import Agent
-from google.adk.tools import google_search  # Import the tool
-
-logger.add("src/sous_chef_agent/sous_chef_agent.log", rotation="500 MB") # Log to file, rotate if file size exceeds 500 MB
+# Configure logger
+logger.add("src/sous_chef_agent/sous_chef_agent.log", rotation="500 MB")
 
 # Ensure log file is truncated on each run for easier debugging
 if os.path.exists("src/sous_chef_agent/sous_chef_agent.log"):
     with open("src/sous_chef_agent/sous_chef_agent.log", "w") as f:
         f.truncate(0)
-
-import time
-import re
 
 # --- API Key Configuration ---
 load_dotenv(dotenv_path="src/.env")
@@ -56,34 +54,34 @@ feta_pasta_steps = {
 # --- Tool Definitions ---
 
 def timer_tool(time_in_seconds: int) -> dict:
-   """
-   Sets a timer for a specified number of seconds. Use this for recipe steps that require waiting.
+    """
+    Sets a timer for a specified number of seconds. Use this for recipe steps that require waiting.
 
-   Args:
-      time_in_seconds: The number of seconds to set the timer for.
+    Args:
+       time_in_seconds: The number of seconds to set the timer for.
 
-   Returns:
-      A dictionary with the status of the timer.
-   """
-   logger.info(f"🛠️ TOOL CALLED: timer_tool(time_in_seconds='{time_in_seconds}')")
-   try:
-      if time_in_seconds < 0:
-         raise ValueError("Time must be a positive integer.")
-      logger.info(f"⏳ Waiting for {time_in_seconds} seconds...")
-      # In a real application, this would be a non-blocking timer.
-      # For this example, sleep is used to simulate the wait.
-      time.sleep(time_in_seconds)
-      logger.info("✅ Timer completed successfully.")
-      return {"status": "success", "message": f"Timer completed after {time_in_seconds} seconds."}
-   except (ValueError, TypeError) as e:
-      logger.error(f"❌ Error: {e}")
-      return {"status": "error", "message": str(e)}
+    Returns:
+       A dictionary with the status of the timer.
+    """
+    logger.info(f"🛠️ TOOL CALLED: timer_tool(time_in_seconds='{time_in_seconds}')")
+    try:
+        if time_in_seconds < 0:
+            raise ValueError("Time must be a positive integer.")
+        logger.info(f"⏳ Waiting for {time_in_seconds} seconds...")
+        # In a real application, this would be a non-blocking timer.
+        # For this example, sleep is used to simulate the wait.
+        time.sleep(time_in_seconds)
+        logger.info("✅ Timer completed successfully.")
+        return {"status": "success", "message": f"Timer completed after {time_in_seconds} seconds."}
+    except (ValueError, TypeError) as e:
+        logger.error(f"❌ Error: {e}")
+        return {"status": "error", "message": str(e)}
 
 def exit_loop(tool_context: ToolContext):
-  """Call this function ONLY when the recipe is complete to signal the loop should end."""
-  logger.info(f"  [Tool Call] exit_loop triggered by {tool_context.agent_name}")
-  tool_context.actions.escalate = True
-  return {}
+    """Call this function ONLY when the recipe is complete to signal the loop should end."""
+    logger.info(f"  [Tool Call] exit_loop triggered by {tool_context.agent_name}")
+    tool_context.actions.escalate = True
+    return {}
 
 class RecipeManagerTool(BaseTool):
     """A stateful tool to manage the recipe's progress."""
@@ -123,7 +121,7 @@ class UserConfirmationTool(LongRunningFunctionTool):
         logger.info(f"  [Tool Call] wait_for_confirmation triggered by {tool_context.agent_name}")
         return {"status": "pending", "message": "Waiting for user to type 'next'."}
 
-# Instantiate the tool
+# Instantiate the tools
 recipe_tool = RecipeManagerTool(feta_pasta_steps)
 user_confirmation_tool = UserConfirmationTool()
 
@@ -149,7 +147,7 @@ chef_instructor_agent = Agent(
     1. If the current step is '{COMPLETION_PHRASE}', do nothing and output that phrase.
     2. Otherwise, clearly and concisely state the instruction to the user.
     3. **Analyze the instruction for a time duration.** If you see a time like "30-35 minutes" or "10 seconds", you MUST call the `timer_tool`. Convert the time to seconds (e.g., 30 minutes = 1800 seconds). Use the lower number if there is a range.
-    4. After stating the instruction (and setting a timer if needed), you MUST call the `user_confirmation_tool.wait_for_confirmation` tool. This will pause the agent and wait for the user to type 'next' before proceeding.
+    4. After stating the instruction (and setting a timer if needed), you MUST call the `wait_for_confirmation` tool. This will pause the agent and wait for the user to type 'next' before proceeding.
     """
 )
 
@@ -165,11 +163,19 @@ completion_checker_agent = Agent(
     """
 )
 
+# Agent to advance steps
+step_advancer_agent = Agent(
+    name="StepAdvancerAgent",
+    model=MODEL,
+    tools=[recipe_tool.advance_step],
+    instruction="Your only job is to call the `advance_step` tool to move to the next recipe step."
+)
+
 # The LoopAgent orchestrates the step-by-step cooking process
 cooking_loop = LoopAgent(
     name="CookingLoop",
     sub_agents=[step_reader_agent, chef_instructor_agent, completion_checker_agent],
-    max_iterations=len(feta_pasta_steps) + 2 # Set a max iteration to avoid infinite loops
+    max_iterations=len(feta_pasta_steps) + 2  # Set a max iteration to avoid infinite loops
 )
 
 # The main SequentialAgent that greets, cooks, and congratulates
@@ -180,10 +186,10 @@ sous_chef_agent = SequentialAgent(
             name="GreetingAgent",
             model=MODEL,
             instruction=f"""You are a friendly Sous Chef.
-            Greet the user and tell them you'll be helping them cook the Tiktok Baked Feta Pasta.
+            Greet the user and tell them you'll be helping them cook the {recipe_name}.
             Here is the full recipe for your context, but do not share it with the user: {recipe}
             Ask them to say "start" when they are ready to begin.
-            """  # TODO: Need to remove hard coding of recipe name
+            """
         ),
         cooking_loop,
         Agent(
@@ -209,16 +215,67 @@ async def run_agent_turn(agent_instance, query_content, session):
     ):
         yield event
 
-async def main():    """Simulates a user interaction with the Sous Chef agent."""    global session_service    session_service = InMemorySessionService()    session = await session_service.create_session(app_name=APP_NAME, user_id=USER_ID)    current_query_content = Content(parts=[Part(text="start")], role="user")    while True:        final_response_text = ""        pending_long_running_tool_call = None        async for event in run_agent_turn(sous_chef_agent, current_query_content, session):            if event.content and event.content.parts:                for part in event.content.parts:                    if part.text:                        logger.info(f"[ADK Event] Author: {event.author}, Text: {part.text}")                        print(f"< Agent: {part.text}") # Print agent responses to console                        final_response_text += part.text                    elif part.function_call:                        logger.info(f"[ADK Event] Author: {event.author}, Function Call: {part.function_call.name}({part.function_call.args})")                        if event.long_running_tool_ids and part.function_call.id in event.long_running_tool_ids:                            pending_long_running_tool_call = part.function_call            else:                logger.info(f"[ADK Event] Author: {event.author}, No content parts.")            if event.is_final_response():                logger.info(f"< Agent Final Response: {final_response_text}")        if COMPLETION_PHRASE in final_response_text:            break        if pending_long_running_tool_call:            user_input = input("\n(Agent is waiting for confirmation. Type 'next' to continue, or 'quit' to exit): ")            if user_input.lower() == 'quit':                break            if user_input.lower() == 'next':                current_query_content = Content(                    parts=[                        Part(                            function_response=types.FunctionResponse(                                id=pending_long_running_tool_call.id,                                name=pending_long_running_tool_call.name,                                response={"status": "completed", "message": "User confirmed."},                            )                        )                    ],                    role="user",                )                # After confirming, we also need to advance the step                await run_agent_turn(step_advancer_agent, Content(parts=[Part(text="advance")], role="user"), session)            else:                print("Please type 'next' to continue.")                current_query_content = Content(parts=[Part(text=user_input)], role="user") # Re-send user's non-'next' input        else:            user_input = input("\n(Type 'next' to get next step, or 'quit' to exit): ")            if user_input.lower() == 'quit':                break            current_query_content = Content(parts=[Part(text=user_input)], role="user")
-
-
+async def main():
+    """Simulates a user interaction with the Sous Chef agent."""
+    global session_service
+    
+    session_service = InMemorySessionService()
+    session = await session_service.create_session(app_name=APP_NAME, user_id=USER_ID)
+    current_query_content = Content(parts=[Part(text="start")], role="user")
+    
+    while True:
+        final_response_text = ""
+        pending_long_running_tool_call = None
+        
+        async for event in run_agent_turn(sous_chef_agent, current_query_content, session):
+            if event.content and event.content.parts:
+                for part in event.content.parts:
+                    if part.text:
+                        logger.info(f"[ADK Event] Author: {event.author}, Text: {part.text}")
+                        print(f"< Agent: {part.text}")
+                        final_response_text += part.text
+                    elif part.function_call:
+                        logger.info(f"[ADK Event] Author: {event.author}, Function Call: {part.function_call.name}({part.function_call.args})")
+                        if event.long_running_tool_ids and part.function_call.id in event.long_running_tool_ids:
+                            pending_long_running_tool_call = part.function_call
+            else:
+                logger.info(f"[ADK Event] Author: {event.author}, No content parts.")
+            
+            if event.is_final_response():
+                logger.info(f"< Agent Final Response: {final_response_text}")
+                if COMPLETION_PHRASE in final_response_text:
+                    break
+        
+        if pending_long_running_tool_call:
+            user_input = input("\n(Agent is waiting for confirmation. Type 'next' to continue, or 'quit' to exit): ")
+            if user_input.lower() == 'quit':
+                break
+            if user_input.lower() == 'next':
+                current_query_content = Content(
+                    parts=[
+                        Part(
+                            function_response=types.FunctionResponse(
+                                id=pending_long_running_tool_call.id,
+                                name=pending_long_running_tool_call.name,
+                                response={"status": "completed", "message": "User confirmed."},
+                            )
+                        )
+                    ],
+                    role="user",
+                )
+                # After confirming, we also need to advance the step
+                await run_agent_turn(step_advancer_agent, Content(parts=[Part(text="advance")], role="user"), session)
+            else:
+                print("Please type 'next' to continue.")
+                current_query_content = Content(parts=[Part(text=user_input)], role="user")  # Re-send user's non-'next' input
+        else:
+            user_input = input("\n(Type 'next' to get next step, or 'quit' to exit): ")
+            if user_input.lower() == 'quit':
+                break
+            current_query_content = Content(parts=[Part(text=user_input)], role="user")
 
 if __name__ == "__main__":
-    # Note: This requires a running asyncio event loop.
-    # In a notebook, this would run directly.
-    # To run as a script, you might need to use asyncio.run()
     try:
         asyncio.run(main())
     except KeyboardInterrupt:
         logger.info("Exiting.")
-
