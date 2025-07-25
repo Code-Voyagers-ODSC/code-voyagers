@@ -47,15 +47,56 @@ USER_ID = "test_user"
 # --- Recipe Data ---
 recipe_name = "Tiktok Baked Feta Pasta"
 
-# Shortened recipe steps for faster testing (top 4 steps)
+# Recipe steps with different timer durations for testing
 recipe_steps = {
     1: "Preheat the oven to 400°F (200°C).",
     2: "In a baking dish, toss cherry tomatoes with olive oil.",
     3: "Place a block of feta in the center of the dish and drizzle it with more olive oil.",
-    4: "Bake for 5 seconds, or until the tomatoes burst and the feta is soft and melty."
+    4: "Put the dish in the oven. When ready to time the baking, say 'next' again to start a 20-second timer."
 }
 
 # --- Tool Definitions ---
+
+def parse_timer_duration(text: str) -> dict:
+    """
+    Parse timer duration from recipe text using regex patterns.
+    
+    Args:
+        text: The recipe text to parse for timer duration
+        
+    Returns:
+        A dictionary with parsed duration in seconds and the original text found
+    """
+    logger.info(f"🛠️ TOOL CALLED: parse_timer_duration(text='{text}')")
+    
+    # Regex patterns to match different time formats
+    patterns = [
+        (r'(\d+)-second', 1),      # "20-second timer"
+        (r'(\d+)\s*second', 1),    # "20 second timer" or "20seconds"
+        (r'(\d+)-minute', 60),     # "20-minute timer"
+        (r'(\d+)\s*minute', 60),   # "20 minute timer" or "20minutes"
+        (r'(\d+)-hour', 3600),     # "1-hour timer"
+        (r'(\d+)\s*hour', 3600),   # "1 hour timer" or "1hours"
+    ]
+    
+    for pattern, multiplier in patterns:
+        match = re.search(pattern, text, re.IGNORECASE)
+        if match:
+            duration_num = int(match.group(1))
+            duration_seconds = duration_num * multiplier
+            unit = "second" if multiplier == 1 else "minute" if multiplier == 60 else "hour"
+            unit += "s" if duration_num != 1 else ""
+            
+            logger.info(f"✅ Parsed timer: {duration_num} {unit} = {duration_seconds} seconds")
+            return {
+                "status": "success",
+                "duration_seconds": duration_seconds,
+                "duration_text": f"{duration_num} {unit}",
+                "original_match": match.group(0)
+            }
+    
+    logger.info("❌ No timer duration found in text")
+    return {"status": "not_found", "message": "No timer duration found in text"}
 
 def timer_tool(time_in_seconds: int) -> dict:
     """
@@ -84,6 +125,53 @@ def timer_tool(time_in_seconds: int) -> dict:
         logger.error(f"❌ Unexpected error in timer: {e}")
         return {"status": "error", "message": f"Timer error: {str(e)}"}
 
+def set_custom_timer(duration_text: str, tool_context: ToolContext) -> dict:
+    """
+    Parse user input for custom timer duration and convert to seconds.
+    
+    Args:
+        duration_text: User input like "30 seconds", "5 minutes", "1 hour"
+        
+    Returns:
+        A dictionary with the parsed duration in seconds
+    """
+    logger.info(f"🛠️ TOOL CALLED: set_custom_timer(duration_text='{duration_text}')")
+    
+    # Clean and normalize input
+    duration_text = duration_text.lower().strip()
+    
+    # Parse different formats
+    patterns = [
+        (r'(\d+)\s*sec', 1),          # "30 sec", "30seconds", "30 s"
+        (r'(\d+)\s*min', 60),         # "5 min", "5minutes", "5 m"  
+        (r'(\d+)\s*hour', 3600),      # "1 hour", "1hours", "1 h"
+        (r'(\d+)', 1),                # Just a number, assume seconds
+    ]
+    
+    for pattern, multiplier in patterns:
+        match = re.search(pattern, duration_text)
+        if match:
+            duration_num = int(match.group(1))
+            duration_seconds = duration_num * multiplier
+            
+            # Store in context for later use
+            tool_context.state["custom_timer_seconds"] = duration_seconds
+            tool_context.state["custom_timer_text"] = duration_text
+            
+            unit = "second" if multiplier == 1 else "minute" if multiplier == 60 else "hour"
+            unit += "s" if duration_num != 1 else ""
+            
+            logger.info(f"✅ Custom timer set: {duration_num} {unit} = {duration_seconds} seconds")
+            return {
+                "status": "success",
+                "duration_seconds": duration_seconds,
+                "duration_text": f"{duration_num} {unit}",
+                "message": f"Custom timer set for {duration_num} {unit} ({duration_seconds} seconds)"
+            }
+    
+    logger.info(f"❌ Could not parse duration from: {duration_text}")
+    return {"status": "error", "message": f"Could not understand duration: {duration_text}"}
+
 def run_countdown_timer(time_in_seconds: int) -> dict:
     """
     Actually runs the countdown timer. This will be called separately after the agent announces it.
@@ -99,7 +187,7 @@ def run_countdown_timer(time_in_seconds: int) -> dict:
             time.sleep(1)
         
         logger.info("🔔 Timer completed! Time's up!")
-        print("🔔 Timer completed! Time's up!")
+        print("🔔 Time's up!")
         
         return {"status": "success", "message": f"Timer completed after {time_in_seconds} seconds."}
     except Exception as e:
@@ -164,18 +252,33 @@ def wait_for_user_confirmation(tool_context: ToolContext) -> dict:
     logger.info(f"  [Tool Call] wait_for_user_confirmation triggered by {tool_context.agent_name}")
     return {"status": "waiting", "message": "Please type 'next' to continue to the next step."}
 
+def confirm_timer_duration(tool_context: ToolContext, duration_seconds: int, duration_text: str) -> dict:
+    """Confirm timer duration with user before starting."""
+    logger.info(f"  [Tool Call] confirm_timer_duration: {duration_seconds} seconds ({duration_text})")
+    tool_context.state["pending_timer_seconds"] = duration_seconds
+    tool_context.state["pending_timer_text"] = duration_text
+    return {
+        "status": "waiting_for_confirmation", 
+        "duration_seconds": duration_seconds,
+        "duration_text": duration_text,
+        "message": f"Ready to start {duration_text} timer. Type 'start' to begin, or specify a different duration (e.g., '30 seconds', '5 minutes')."
+    }
+
 # Instantiate the tools
 recipe_tool = RecipeManagerTool(recipe_steps)
 
-# --- Simple Agent with All Tools (like version that was working) ---
+# --- Enhanced Agent with Better Timer Handling ---
 sous_chef_agent = Agent(
     name="SousChefAgent",
     model=MODEL,
     tools=[
         recipe_tool.get_current_step, 
         recipe_tool.advance_step, 
+        parse_timer_duration,
         timer_tool, 
-        wait_for_user_confirmation, 
+        set_custom_timer,
+        confirm_timer_duration,
+        wait_for_user_confirmation,
         exit_loop
     ],
     instruction=f"""You are a friendly Sous Chef helping users cook {recipe_name} step by step.
@@ -189,38 +292,54 @@ WORKFLOW:
    - Present the step clearly and enthusiastically 
    - Call wait_for_user_confirmation and STOP
 
-2. **When user says 'next' or similar**:
+2. **When user says 'next' for regular steps**:
    - Call advance_step to move to the next step
    - Call get_current_step to see the new step
-   - Present the new step clearly and enthusiastically
-   - Call wait_for_user_confirmation and STOP
+   - Present the step clearly and enthusiastically
+   - If step mentions a timer, follow timer workflow below
+   - If no timer, call wait_for_user_confirmation and STOP
 
-3. **Timer steps special handling**:
-   When a step mentions time, look for these EXACT patterns:
-   - "5 seconds" → call timer_tool(5)
-   - "20 minutes" → call timer_tool(1200) 
-   - "1 hour" → call timer_tool(3600)
+3. **TIMER WORKFLOW** (when step mentions timing/timer):
    
-   IMPORTANT: If you see "Bake for 5 seconds", that means 5 seconds, NOT 400 or any other number!
+   **FIRST TIME presenting timer step:**
+   - Present the step exactly as written
+   - Call parse_timer_duration with the step text to extract timer duration
+   - If timer found, call confirm_timer_duration with the parsed duration
+   - STOP and wait for user response
    
-   Process: Present the step but explain the timer will start when they're ready
-   Wait for user to say 'next' to actually start the timer
-   When they say 'next': First say you're starting the timer, then call timer_tool, then wait for confirmation again
+   **USER RESPONSES to timer confirmation:**
+   - If user says "start" or "yes" or "ok": Call timer_tool with the confirmed duration immediately
+   - If user provides different duration (e.g., "30 seconds", "5 minutes"): 
+     * Call set_custom_timer with their input
+     * Then call timer_tool with the custom duration immediately
+   - If user says "next": Call timer_tool with confirmed duration immediately
+   
+   **HANDLING USER CORRECTIONS:**
+   - If user says things like "it's 20 seconds" or "should be minutes": 
+     * Call set_custom_timer to parse their correction
+     * Call timer_tool with the corrected duration immediately
+   - Always acknowledge corrections: "Got it! Setting timer for [corrected duration]"
 
 4. **When recipe is complete**:
    - If get_current_step returns "The recipe is finished", call exit_loop
    - Congratulate the user!
 
-TIMER HANDLING EXAMPLE:
-First response: "Step 4: Bake for 5 seconds! Get everything in the oven first, then type 'next' when you're ready for me to start the 5-second timer!"
-User says 'next': "Perfect! Starting the 5-second timer now!" [call timer_tool(5)] "Timer will count down, then we'll continue!"
+TIMER PARSING RULES:
+- ALWAYS use parse_timer_duration tool first when you see timer-related text
+- NEVER assume or guess timer durations
+- Let the tool extract the exact duration from the recipe text
+- Always confirm duration with user before starting timer
+- Allow users to change the duration if they want
 
-CRITICAL: Always use the EXACT time mentioned in the recipe step! "5 seconds" = timer_tool(5), not 400!
+EXAMPLES:
+- Recipe says "20-second timer" → parse_timer_duration finds 20 seconds → confirm with user
+- User says "it's 5 minutes" → set_custom_timer("5 minutes") → timer_tool(300)
+- User says "30 sec" → set_custom_timer("30 sec") → timer_tool(30)
 
-Remember: ALWAYS provide enthusiastic text responses, and let users confirm before starting timers!"""
+Be helpful and always double-check timer durations with users!"""
 )
 
-logger.info("✅ Sous Chef Agent has been redefined as a simple agent with all tools.")
+logger.info("✅ Enhanced Sous Chef Agent created with better timer parsing.")
 
 # --- Test Execution Logic ---
 
@@ -269,8 +388,8 @@ async def main():
                     elif part.function_call:
                         logger.info(f"[ADK Event] Author: {event.author}, Function Call: {part.function_call.name}({part.function_call.args})")
                         
-                        # Check if this is a wait for user confirmation
-                        if part.function_call.name == "wait_for_user_confirmation":
+                        # Check for different types of waiting
+                        if part.function_call.name in ["wait_for_user_confirmation", "confirm_timer_duration"]:
                             waiting_for_user = True
                         elif part.function_call.name == "timer_tool":
                             timer_called = True
@@ -288,9 +407,7 @@ async def main():
                 
                 # If a timer was called, run the countdown AFTER the agent's response
                 if timer_called and timer_duration > 0:
-                    print(f"\n⏳ Now starting the {timer_duration}-second timer...")
                     run_countdown_timer(timer_duration)
-                    print(f"🔔 Timer finished! Continuing with the recipe...\n")
                 
                 # Check if recipe is completed
                 if COMPLETION_PHRASE in final_response_text or "Congratulations" in final_response_text or "recipe is complete" in final_response_text.lower():
@@ -309,7 +426,7 @@ async def main():
         
         # Get user input
         if waiting_for_user:
-            user_input = input("\n⏭️  Type 'next' to continue (or 'quit' to exit): ")
+            user_input = input("\n⏭️  Type your response (or 'quit' to exit): ")
         else:
             user_input = input("\n💬 Type your message (or 'quit' to exit): ")
             
