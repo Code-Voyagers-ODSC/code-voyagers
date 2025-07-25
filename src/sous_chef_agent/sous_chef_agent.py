@@ -1,3 +1,5 @@
+import warnings
+import logging
 import os
 import google.generativeai as genai
 from dotenv import load_dotenv
@@ -14,8 +16,15 @@ from loguru import logger
 import time
 import re
 
-# Configure logger
-logger.add("src/sous_chef_agent/sous_chef_agent.log", rotation="500 MB")
+# Suppress all warnings related to function calls and non-text parts
+warnings.filterwarnings("ignore")
+logging.getLogger("google").setLevel(logging.ERROR)
+logging.getLogger("google.adk").setLevel(logging.ERROR)
+logging.getLogger("google.generativeai").setLevel(logging.ERROR)
+
+# Configure logger to separate CLI output from file logging
+logger.remove()  # Remove the default handler that outputs to stderr
+logger.add("src/sous_chef_agent/sous_chef_agent.log", rotation="500 MB", level="DEBUG")  # File logging only
 
 # Ensure log file is truncated on each run for easier debugging
 if os.path.exists("src/sous_chef_agent/sous_chef_agent.log"):
@@ -63,7 +72,24 @@ def timer_tool(time_in_seconds: int) -> dict:
         if time_in_seconds < 0:
             raise ValueError("Time must be a positive integer.")
         
-        logger.info(f"⏳ Starting countdown timer for {time_in_seconds} seconds...")
+        logger.info(f"⏳ Timer tool called for {time_in_seconds} seconds")
+        
+        # Return immediately - the timer message will be shown by the agent
+        return {"status": "timer_ready", "duration": time_in_seconds, "message": f"Timer set for {time_in_seconds} seconds"}
+        
+    except (ValueError, TypeError) as e:
+        logger.error(f"❌ Error: {e}")
+        return {"status": "error", "message": str(e)}
+    except Exception as e:
+        logger.error(f"❌ Unexpected error in timer: {e}")
+        return {"status": "error", "message": f"Timer error: {str(e)}"}
+
+def run_countdown_timer(time_in_seconds: int) -> dict:
+    """
+    Actually runs the countdown timer. This will be called separately after the agent announces it.
+    """
+    logger.info(f"🛠️ COUNTDOWN STARTED: {time_in_seconds} seconds")
+    try:
         print(f"⏰ Starting {time_in_seconds} second timer...")
         
         # Countdown with logging
@@ -76,12 +102,9 @@ def timer_tool(time_in_seconds: int) -> dict:
         print("🔔 Timer completed! Time's up!")
         
         return {"status": "success", "message": f"Timer completed after {time_in_seconds} seconds."}
-    except (ValueError, TypeError) as e:
-        logger.error(f"❌ Error: {e}")
-        return {"status": "error", "message": str(e)}
     except Exception as e:
-        logger.error(f"❌ Unexpected error in timer: {e}")
-        return {"status": "error", "message": f"Timer error: {str(e)}"}
+        logger.error(f"❌ Unexpected error in countdown: {e}")
+        return {"status": "error", "message": f"Countdown error: {str(e)}"}
 
 def exit_loop(tool_context: ToolContext):
     """Call this function ONLY when the recipe is complete to signal the loop should end."""
@@ -182,8 +205,7 @@ WORKFLOW:
    
    Process: Present the step but explain the timer will start when they're ready
    Wait for user to say 'next' to actually start the timer
-   Then call the correct timer_tool and explain the timer is running
-   Call wait_for_user_confirmation again after timer completes
+   When they say 'next': First say you're starting the timer, then call timer_tool, then wait for confirmation again
 
 4. **When recipe is complete**:
    - If get_current_step returns "The recipe is finished", call exit_loop
@@ -191,7 +213,7 @@ WORKFLOW:
 
 TIMER HANDLING EXAMPLE:
 First response: "Step 4: Bake for 5 seconds! Get everything in the oven first, then type 'next' when you're ready for me to start the 5-second timer!"
-User says 'next': "Perfect! Starting the 5-second timer now!" [call timer_tool(5)] "Timer completed! Ready for the next step?"
+User says 'next': "Perfect! Starting the 5-second timer now!" [call timer_tool(5)] "Timer will count down, then we'll continue!"
 
 CRITICAL: Always use the EXACT time mentioned in the recipe step! "5 seconds" = timer_tool(5), not 400!
 
@@ -230,6 +252,7 @@ async def main():
         final_response_text = ""
         waiting_for_user = False
         timer_called = False
+        timer_duration = 0
         
         logger.info(f"=== ITERATION {iteration_count} ===")
         
@@ -251,6 +274,9 @@ async def main():
                             waiting_for_user = True
                         elif part.function_call.name == "timer_tool":
                             timer_called = True
+                            # Extract timer duration from function call
+                            if 'time_in_seconds' in part.function_call.args:
+                                timer_duration = part.function_call.args['time_in_seconds']
             else:
                 logger.info(f"[ADK Event] Author: {event.author}, No content parts.")
             
@@ -259,6 +285,12 @@ async def main():
                 
                 # Clean console output - show the complete response
                 print(f"\n🍴 Sous Chef: {final_response_text}")
+                
+                # If a timer was called, run the countdown AFTER the agent's response
+                if timer_called and timer_duration > 0:
+                    print(f"\n⏳ Now starting the {timer_duration}-second timer...")
+                    run_countdown_timer(timer_duration)
+                    print(f"🔔 Timer finished! Continuing with the recipe...\n")
                 
                 # Check if recipe is completed
                 if COMPLETION_PHRASE in final_response_text or "Congratulations" in final_response_text or "recipe is complete" in final_response_text.lower():
