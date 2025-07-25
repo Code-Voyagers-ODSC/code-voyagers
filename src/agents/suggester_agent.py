@@ -56,11 +56,27 @@ recipe_agent = LlmAgent(
         "    \"serving_suggestions\": [\"...\"],\n"
         "    \"make_ahead_notes\": \"...\",\n"
         "    \"troubleshooting\": [\"...\"]\n"
+        "  },\n"
+        "  \"sous_chef_format\": {\n"
+        "    \"name\": \"Recipe Title\",\n"
+        "    \"steps\": {\n"
+        "      \"1\": \"First step - be specific and clear\",\n"
+        "      \"2\": \"Second step - include temperatures, times, and techniques\",\n"
+        "      \"3\": \"Third step - mention any timers needed (e.g., 'Bake for 20 minutes')\",\n"
+        "      \"4\": \"Continue with numbered steps until recipe is complete\"\n"
+        "    }\n"
         "  }\n"
         "}\n\n"
+        "IMPORTANT FOR SOUS_CHEF_FORMAT:\n"
+        "• Break down the cooking method into clear, sequential numbered steps\n"
+        "• Each step should be actionable and specific\n"
+        "• Include timing information where relevant (e.g., 'Bake for 20 minutes', 'Simmer for 15 minutes')\n"
+        "• Keep steps concise but complete\n"
+        "• Number steps as strings (\"1\", \"2\", \"3\", etc.)\n"
+        "• Make sure the steps flow logically from start to finish\n\n"
     ),
     description="Suggest cooking recipes based on input ingredients",
-    tools=[web_search_recipes_tool]  # ADK auto‑wraps this for you :contentReference[oaicite:0]{index=0}
+    tools=[web_search_recipes_tool]
 )
 
 async def smart_recipe_search_handler(ingredients: List[str]):
@@ -121,3 +137,22 @@ def clean_json_response(txt: str) -> str:
     arr = txt[start:end+1]
     # remove trailing commas
     return re.sub(r',\s*([\]}])', r'\1', arr)
+
+def extract_sous_chef_format(recipe_response):
+    """
+    Helper function to extract just the sous_chef_format from a recipe response.
+    Use this when you want to pass a recipe to the sous chef agent.
+    """
+    if "recipes" in recipe_response:
+        recipes = recipe_response["recipes"]
+        if recipes and len(recipes) > 0:
+            # Get the first recipe's sous_chef_format
+            first_recipe = recipes[0]
+            if "sous_chef_format" in first_recipe:
+                return first_recipe["sous_chef_format"]
+    return None
+
+# Example usage:
+# response = await smart_recipe_search_handler(["chicken", "pasta", "garlic"])
+# sous_chef_recipe = extract_sous_chef_format(response)
+# # Now you can use sous_chef_recipe directly with the sous chef agent
