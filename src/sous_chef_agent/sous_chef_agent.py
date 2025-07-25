@@ -8,6 +8,7 @@ from google.adk.runners import Runner
 from google.adk.sessions import InMemorySessionService
 from google.genai.types import Content, Part
 import asyncio
+from loguru import logger
 
 import time
 import re
@@ -55,23 +56,23 @@ def timer_tool(time_in_seconds: int) -> dict:
    Returns:
       A dictionary with the status of the timer.
    """
-   print(f"🛠️ TOOL CALLED: timer_tool(time_in_seconds='{time_in_seconds}')")
+   logger.info(f"🛠️ TOOL CALLED: timer_tool(time_in_seconds='{time_in_seconds}')")
    try:
       if time_in_seconds < 0:
          raise ValueError("Time must be a positive integer.")
-      print(f"⏳ Waiting for {time_in_seconds} seconds...")
+      logger.info(f"⏳ Waiting for {time_in_seconds} seconds...")
       # In a real application, this would be a non-blocking timer.
       # For this example, sleep is used to simulate the wait.
       time.sleep(time_in_seconds)
-      print("✅ Timer completed successfully.")
+      logger.info("✅ Timer completed successfully.")
       return {"status": "success", "message": f"Timer completed after {time_in_seconds} seconds."}
    except (ValueError, TypeError) as e:
-      print(f"❌ Error: {e}")
+      logger.error(f"❌ Error: {e}")
       return {"status": "error", "message": str(e)}
 
 def exit_loop(tool_context: ToolContext):
   """Call this function ONLY when the recipe is complete to signal the loop should end."""
-  print(f"  [Tool Call] exit_loop triggered by {tool_context.agent_name}")
+  logger.info(f"  [Tool Call] exit_loop triggered by {tool_context.agent_name}")
   tool_context.actions.escalate = True
   return {}
 
@@ -97,7 +98,7 @@ class RecipeManagerTool(BaseTool):
         tool_context.state["step_index"] = current_index + 1
         tool_context.state["current_step_text"] = next_step_text
 
-        print(f"  [Tool Call] get_next_step: Now on step {current_index + 1}")
+        logger.info(f"  [Tool Call] get_next_step: Now on step {current_index + 1}")
         return {"step": next_step_text}
 
 # Instantiate the tool
@@ -171,7 +172,7 @@ sous_chef_agent = SequentialAgent(
     description="A friendly Sous Chef agent that guides you step-by-step through a recipe using a loop."
 )
 
-print("✅ Sous Chef Agent has been redefined using a Loop-based architecture.")
+logger.info("✅ Sous Chef Agent has been redefined using a Loop-based architecture.")
 
 # --- Test Execution Logic ---
 
@@ -179,13 +180,13 @@ async def run_agent_query(agent, query, session):
     """A simplified runner for testing."""
     runner = Runner(agent=agent, session_service=session_service, app_name=APP_NAME)
     final_response = ""
-    print(f"\n> User: {query}")
+    logger.info(f"\n> User: {query}")
     async for event in runner.run_async(
         user_id=USER_ID,
         session_id=session.id,
         new_message=Content(parts=[Part(text=query)], role="user")
     ):
-        if event.is_final_response():            if event.content and event.content.parts:                final_response = event.content.parts[0].text                print(f"\n< Agent: {final_response}")
+        if event.is_final_response():            if event.content and event.content.parts:                final_response = event.content.parts[0].text                logger.info(f"\n< Agent: {final_response}")
     return final_response
 
 async def main():
