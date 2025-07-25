@@ -213,3 +213,70 @@ async def smart_recipe_search_handler_dict(ingredients: List[str]) -> dict:
         recipes_dict.append(recipe_dict)
     
     return {"recipes": recipes_dict}
+
+async def main():
+    """
+    Test function to demonstrate the structured output recipe suggester.
+    """
+    print("🍳 Testing Recipe Suggester Agent with Structured Output")
+    print("=" * 60)
+    
+    # Test ingredients
+    test_ingredients = [
+        ["chicken", "pasta", "garlic"],
+        ["beef", "potatoes", "onions"],
+        ["salmon", "rice", "vegetables"]
+    ]
+    
+    for i, ingredients in enumerate(test_ingredients, 1):
+        print(f"\n📋 Test {i}: Searching for recipes with {', '.join(ingredients)}")
+        print("-" * 40)
+        
+        try:
+            # Get structured response
+            response = await smart_recipe_search_handler(ingredients)
+            
+            if response.recipes:
+                print(f"✅ Found {len(response.recipes)} recipes!")
+                
+                # Display each recipe summary
+                for j, recipe in enumerate(response.recipes, 1):
+                    print(f"\n🍽️  Recipe {j}: {recipe.summary.title}")
+                    print(f"   Difficulty: {recipe.summary.difficulty}")
+                    print(f"   Time: {recipe.summary.estimated_time}")
+                    print(f"   Cuisine: {recipe.summary.cuisine_type}")
+                    print(f"   Serves: {recipe.summary.serves}")
+                    
+                    # Show sous chef format
+                    sous_chef = recipe.sous_chef_format
+                    print(f"   📝 Sous Chef Steps ({len(sous_chef.steps)} steps):")
+                    for step_num, step_desc in list(sous_chef.steps.items())[:3]:  # Show first 3 steps
+                        print(f"      {step_num}. {step_desc[:80]}{'...' if len(step_desc) > 80 else ''}")
+                    if len(sous_chef.steps) > 3:
+                        print(f"      ... and {len(sous_chef.steps) - 3} more steps")
+                
+                # Test extraction functions
+                print(f"\n🔧 Testing extraction functions:")
+                sous_chef_format = extract_sous_chef_format(response, 0)
+                if sous_chef_format:
+                    print(f"   ✅ extract_sous_chef_format(): {sous_chef_format.name}")
+                
+                sous_chef_dict = extract_sous_chef_dict(response, 0)
+                if sous_chef_dict:
+                    print(f"   ✅ extract_sous_chef_dict(): {sous_chef_dict['name']} ({len(sous_chef_dict['steps'])} steps)")
+                
+            else:
+                print("❌ No recipes found")
+                
+        except Exception as e:
+            print(f"❌ Error: {str(e)}")
+            import traceback
+            traceback.print_exc()
+        
+        print("\n" + "=" * 60)
+    
+    print("🎉 Testing completed!")
+
+if __name__ == "__main__":
+    import asyncio
+    asyncio.run(main())
