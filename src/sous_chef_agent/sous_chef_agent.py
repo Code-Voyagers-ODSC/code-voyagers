@@ -1,17 +1,6 @@
 import os
-from loguru import logger
-import sys
-
-# Remove default handler to prevent duplicate logs
-logger.remove()
-# Add console handler
-logger.add(sys.stderr, level="INFO")
-# Add file handler
-logger.add(os.path.join(os.path.dirname(__file__), "sous_chef_agent.log"), rotation="500 MB", diagnose=True, mode='w')
-
 import google.generativeai as genai
 from dotenv import load_dotenv
-
 from google.adk.agents import Agent, SequentialAgent, LoopAgent
 from google.adk.tools import ToolContext
 from google.adk.tools.base_tool import BaseTool
@@ -19,9 +8,12 @@ from google.adk.runners import Runner
 from google.adk.sessions import InMemorySessionService
 from google.genai.types import Content, Part
 import asyncio
+from loguru import logger
 
 from google.adk.agents import Agent
 from google.adk.tools import google_search  # Import the tool
+
+logger.add("sous_chef_agent.log", rotation="500 MB") # Log to file, rotate if file size exceeds 500 MB
 
 import time
 import re
@@ -47,7 +39,7 @@ feta_pasta_steps = {
     1: "Preheat the oven to 400°F (200°C).",
     2: "In a baking dish, toss cherry tomatoes with olive oil.",
     3: "Place a block of feta in the center of the dish and drizzle it with more olive oil.",
-    4: "Bake for 30–35 minutes, or until the tomatoes burst and the feta is soft and melty.",
+    4: "Bake for 10 seconds, or until the tomatoes burst and the feta is soft and melty.",
     5: "While the tomatoes and feta are baking, cook the pasta until al dente. Reserve some pasta water.",
     6: "Remove the dish from the oven and stir in minced garlic and crushed red pepper flakes.",
     7: "Add the cooked pasta to the dish and mix everything together, adding reserved pasta water if needed to loosen.",
@@ -94,23 +86,28 @@ class RecipeManagerTool(BaseTool):
         self._steps = steps
         self._step_keys = sorted(steps.keys())
 
-    def get_next_step(self, tool_context: ToolContext) -> dict:
-        """Gets the next step of the recipe. If the recipe is finished, it signals the loop to exit."""
+    def get_current_step(self, tool_context: ToolContext) -> dict:
+        """Gets the current step of the recipe. If the recipe is finished, it signals the loop to exit."""
         current_index = tool_context.state.get("step_index", 0)
 
         if current_index >= len(self._step_keys):
             exit_loop(tool_context)
             return {"step": COMPLETION_PHRASE}
 
-        next_step_key = self._step_keys[current_index]
-        next_step_text = self._steps[next_step_key]
+        current_step_key = self._step_keys[current_index]
+        current_step_text = self._steps[current_step_key]
 
-        # Update state for the next turn
+        tool_context.state["current_step_text"] = current_step_text
+
+        logger.info(f"  [Tool Call] get_current_step: Now on step {current_index + 1}")
+        return {"step": current_step_text}
+
+    def advance_step(self, tool_context: ToolContext) -> dict:
+        """Advances the recipe to the next step."""
+        current_index = tool_context.state.get("step_index", 0)
         tool_context.state["step_index"] = current_index + 1
-        tool_context.state["current_step_text"] = next_step_text
-
-        logger.info(f"  [Tool Call] get_next_step: Now on step {current_index + 1}")
-        return {"step": next_step_text}
+        logger.info(f"  [Tool Call] advance_step: Advanced to step {current_index + 2}")
+        return {"status": "success", "message": "Advanced to next step."}
 
 # Instantiate the tool
 recipe_tool = RecipeManagerTool(feta_pasta_steps)
@@ -121,8 +118,8 @@ recipe_tool = RecipeManagerTool(feta_pasta_steps)
 step_reader_agent = Agent(
     name="StepReaderAgent",
     model=MODEL,
-    tools=[recipe_tool.get_next_step],
-    instruction="Your only job is to call the `get_next_step` tool to find out the next instruction in the recipe.",
+    tools=[recipe_tool.get_current_step],
+    instruction="Your only job is to call the `get_current_step` tool to find out the current instruction in the recipe.",
     output_key="current_step"
 )
 
@@ -137,7 +134,7 @@ chef_instructor_agent = Agent(
     1. If the current step is '{COMPLETION_PHRASE}', do nothing and output that phrase.
     2. Otherwise, clearly and concisely state the instruction to the user.
     3. **Analyze the instruction for a time duration.** If you see a time like "30-35 minutes" or "10 seconds", you MUST call the `timer_tool`. Convert the time to seconds (e.g., 30 minutes = 1800 seconds). Use the lower number if there is a range.
-    4. After stating the instruction (and setting a timer if needed), ask the user to confirm when they are ready for the next step.
+    4. After stating the instruction (and setting a timer if needed), explicitly tell the user to type 'next' when they are ready for the next step. Do NOT provide the next step until the user types 'next'.
     """
 )
 
@@ -153,10 +150,23 @@ completion_checker_agent = Agent(
     """
 )
 
+# Agent 4 (in loop): Waits for user confirmation to advance
+user_confirmation_agent = Agent(
+    name="UserConfirmationAgent",
+    model=MODEL,
+    tools=[recipe_tool.advance_step],
+    instruction=f"""You are responsible for advancing the recipe.
+    The user has just been given an instruction.
+    Your only job is to check if the user's last input was 'next'.
+    If the user's last input was 'next', you MUST call the `advance_step` tool.
+    If the user's last input was NOT 'next', you MUST tell the user to type 'next' to continue.
+    """
+)
+
 # The LoopAgent orchestrates the step-by-step cooking process
 cooking_loop = LoopAgent(
     name="CookingLoop",
-    sub_agents=[step_reader_agent, chef_instructor_agent, completion_checker_agent],
+    sub_agents=[step_reader_agent, chef_instructor_agent, user_confirmation_agent, completion_checker_agent],
     max_iterations=len(feta_pasta_steps) + 2 # Set a max iteration to avoid infinite loops
 )
 
@@ -168,7 +178,7 @@ sous_chef_agent = SequentialAgent(
             name="GreetingAgent",
             model=MODEL,
             instruction=f"""You are a friendly Sous Chef.
-            Greet the user and tell them you'll be helping them cook the {recipe_name}.
+            Greet the user and tell them you'll be helping them cook the Tiktok Baked Feta Pasta.
             Here is the full recipe for your context, but do not share it with the user: {recipe}
             Ask them to say "start" when they are ready to begin.
             """  # TODO: Need to remove hard coding of recipe name
@@ -197,17 +207,11 @@ async def run_agent_query(agent, query, session):
         session_id=session.id,
         new_message=Content(parts=[Part(text=query)], role="user")
     ):
+        logger.info(f"[ADK Event] {event.type}: {event.content.parts[0].text if event.content and event.content.parts else ''}")
         if event.is_final_response():
             if event.content and event.content.parts:
-                final_response_text = ""
-                for part in event.content.parts:
-                    if part.text:
-                        final_response_text += part.text
-                    if part.function_call:
-                        logger.info(f"< Agent called tool: {part.function_call.name} with args: {part.function_call.args}")
-                if final_response_text:
-                    final_response = final_response_text
-                    logger.info(f"< Agent: {final_response}")
+                final_response = event.content.parts[0].text
+                logger.info(f"< Agent: {final_response}")
     return final_response
 
 async def main():
@@ -217,7 +221,7 @@ async def main():
     session = await session_service.create_session(app_name=APP_NAME, user_id=USER_ID)
 
     # Start the conversation
-    response = await run_agent_query(sous_chef_agent, "Hello!", session)
+    response = await run_agent_query(sous_chef_agent, "start", session)
 
     # Loop through the recipe steps
     while True:
@@ -231,18 +235,6 @@ async def main():
             break
 
 
-# root_agent = Agent(
-#    # A unique name for the agent.
-#    name="basic_search_agent",
-#    # The Large Language Model (LLM) that agent will use.
-#    model="gemini-live-2.5-flash-preview",  # for example: model="gemini-2.0-flash-live-001" or model="gemini-2.0-flash-live-preview-04-09"
-#    # A short description of the agent's purpose.
-#    description="Agent to answer questions using Google Search.",
-#    # Instructions to set the agent's behavior.
-#    instruction="You are an expert researcher. You always stick to the facts.",
-#    # Add google_search tool to perform grounding with Google search.
-#    tools=[google_search]
-# )
 
 if __name__ == "__main__":
     # Note: This requires a running asyncio event loop.
