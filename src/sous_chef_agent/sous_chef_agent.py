@@ -165,18 +165,10 @@ completion_checker_agent = Agent(
     """
 )
 
-# Agent to advance the step after user confirmation
-step_advancer_agent = Agent(
-    name="StepAdvancerAgent",
-    model=MODEL,
-    tools=[recipe_tool.advance_step],
-    instruction="Your only job is to call the `advance_step` tool to move to the next recipe instruction."
-)
-
 # The LoopAgent orchestrates the step-by-step cooking process
 cooking_loop = LoopAgent(
     name="CookingLoop",
-    sub_agents=[step_reader_agent, chef_instructor_agent, step_advancer_agent, completion_checker_agent],
+    sub_agents=[step_reader_agent, chef_instructor_agent, completion_checker_agent],
     max_iterations=len(feta_pasta_steps) + 2 # Set a max iteration to avoid infinite loops
 )
 
@@ -267,6 +259,8 @@ async def main():
                     role="user",
                 )
                 response, pending_tools = await run_agent_query(sous_chef_agent, updated_function_response_part, session)
+                # Explicitly run the step_advancer_agent after user confirmation
+                await run_agent_query(step_advancer_agent, "advance", session)
             else:
                 print("Please type 'next' to continue.")
                 # Re-run the agent with the same pending tool, effectively re-prompting
