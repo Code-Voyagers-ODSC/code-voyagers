@@ -1,42 +1,24 @@
-import google.generativeai as genai
-import os
+# agents/suggester_agent.py
+
 import json
 import re
+from typing import List
 from dotenv import load_dotenv
+
+from google.adk.agents import LlmAgent
+from google.adk.sessions import InMemorySessionService
+from google.adk.runners import Runner
+from google.genai import types
+
 from tools.search_tool import web_search_recipes_tool
 
-load_dotenv()
+load_dotenv()  # loads GOOGLE_API_KEY, etc.
 
-genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
-
-async def smart_recipe_search_handler(ingredients):
-    print(f"\n=== New search request for ingredients: {ingredients} ===")
-    
-    search_results = web_search_recipes_tool(ingredients)
-    print(f"Search returned {len(search_results)} results")
-
-    if not search_results:
-        return {
-            "error": f"No recipes found for {', '.join(ingredients)}. Try different ingredients or fewer ingredients.",
-            "suggestions": [
-                "Try searching with just one or two main ingredients",
-                "Use more common ingredient names",
-                "Check spelling of ingredients"
-            ]
-        }
-
-    for i, result in enumerate(search_results):
-        print(f"\nResult {i+1}:")
-        print(f"  Title: {result['title']}")
-        print(f"  Link: {result['link']}")
-        print(f"  Snippet: {result['snippet'][:100]}...")
-
-    formatted = "\n\n".join(
-        f"Title: {r['title']}\nLink: {r['link']}\nSnippet: {r['snippet']}"
-        for r in search_results
-    )
-
-    full_prompt = (
+# Define the Agent, passing your search function directly
+recipe_agent = LlmAgent(
+    name="recipe_suggester",
+    model="gemini-2.0-flash",
+    instruction=(
         "You are a cooking assistant. From the search results, select the 3-4 best recipes that match the requested ingredients. "
         "Be flexible - if a recipe contains most of the ingredients or similar ingredients, include it.\n\n"
         "IMPORTANT:\n"
@@ -76,46 +58,66 @@ async def smart_recipe_search_handler(ingredients):
         "    \"troubleshooting\": [\"...\"]\n"
         "  }\n"
         "}\n\n"
-        f"Requested ingredients: {', '.join(ingredients)}\n\nSearch Results:\n{formatted}"
+    ),
+    description="Suggest cooking recipes based on input ingredients",
+    tools=[web_search_recipes_tool]  # ADK auto‑wraps this for you :contentReference[oaicite:0]{index=0}
+)
+
+async def smart_recipe_search_handler(ingredients: List[str]):
+    # 1) Start an in‑memory session
+    session_svc = InMemorySessionService()
+    session = await session_svc.create_session(
+        app_name="recipe_suggestor_app",
+        user_id="anonymous",
+        session_id=None  # let ADK generate one
     )
 
+    # 2) Create a runner for that session
+    runner = Runner(
+        agent=recipe_agent,
+        app_name="recipe_suggestor_app",
+        session_service=session_svc
+    )
+
+    # 3) Send the user's ingredients as JSON
+    payload = json.dumps({"ingredients": ingredients})
+    user_msg = types.Content(role="user", parts=[types.Part(text=payload)])
+
+    # 4) Run the agent (it will invoke web_search_recipes_tool under the hood)
+    raw_response = None
+    async for evt in runner.run_async(
+        user_id="anonymous",
+        session_id=session.id,           # ← use `session.id`, not `session.session_id`
+        new_message=user_msg
+    ):
+        if evt.is_final_response():
+            raw_response = evt.content.parts[0].text
+            break
+
+    if not raw_response:
+        return {"error": "Agent produced no response."}
+
+    # 5) Clean & parse the JSON array
     try:
-        print("\nCalling Gemini to process results...")
-        model = genai.GenerativeModel("gemini-2.0-flash")
-        response = model.generate_content(full_prompt)
-
-        raw_response = response.text.strip()
-        print(f"\nGemini raw response length: {len(raw_response)} characters")
-
-        cleaned_response = clean_json_response(raw_response)
-
-        try:
-            parsed_json = json.loads(cleaned_response)
-            print(f"Successfully parsed {len(parsed_json)} recipes")
-            return {"recipes": parsed_json}
-        except json.JSONDecodeError as e:
-            print(f"JSON validation failed: {e}")
-            return {
-                "error": "Failed to parse recipe data from Gemini",
-                "debug_info": str(e),
-                "raw_preview": raw_response[:200]
-            }
-
+        cleaned = clean_json_response(raw_response)
+        recipes = json.loads(cleaned)
+        return {"recipes": recipes}
     except Exception as e:
-        print(f"Error calling Gemini: {e}")
-        return {"error": f"Failed to process recipes: {str(e)}"}
+        return {
+            "error": "Failed to parse agent response",
+            "debug": str(e),
+            "raw_preview": raw_response[:200]
+        }
 
-def clean_json_response(response_text):
-    response_text = re.sub(r'```json\s*', '', response_text)
-    response_text = re.sub(r'```\s*', '', response_text)
-
-    start_idx = response_text.find('[')
-    end_idx = response_text.rfind(']')
-
-    if start_idx == -1 or end_idx == -1:
-        raise ValueError("No valid JSON array found in response")
-
-    json_text = response_text[start_idx:end_idx + 1]
-    json_text = re.sub(r',\s*}', '}', json_text)
-    json_text = re.sub(r',\s*]', ']', json_text)
-    return json_text
+def clean_json_response(txt: str) -> str:
+    # strip markdown fences
+    txt = re.sub(r'```json\s*', '', txt)
+    txt = re.sub(r'```', '', txt)
+    # extract the array
+    start = txt.find('[')
+    end = txt.rfind(']')
+    if start == -1 or end == -1:
+        raise ValueError("No JSON array found")
+    arr = txt[start:end+1]
+    # remove trailing commas
+    return re.sub(r',\s*([\]}])', r'\1', arr)
