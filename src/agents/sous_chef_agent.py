@@ -43,14 +43,14 @@ APP_NAME = "sous_chef_test_app"
 USER_ID = "test_user"
 
 # --- Recipe Data ---
-recipe_name = "Tiktok Baked Feta Pasta"
-
-# Recipe steps with different timer durations for testing
-recipe_steps = {
-    1: "Preheat the oven to 400°F (200°C).",
-    2: "In a baking dish, toss cherry tomatoes with olive oil.",
-    3: "Place a block of feta in the center of the dish and drizzle it with more olive oil.",
-    4: "Put the dish in the oven. When ready to time the baking, say 'next' again to start a 20-second timer."
+recipe = {
+    "name": "Tiktok Baked Feta Pasta",
+    "steps": {
+        1: "Preheat the oven to 400°F (200°C).",
+        2: "In a baking dish, toss cherry tomatoes with olive oil.",
+        3: "Place a block of feta in the center of the dish and drizzle it with more olive oil.",
+        4: "Put the dish in the oven. When ready to time the baking, say 'next' again to start a 20-second timer."
+    }
 }
 
 # --- Tool Definitions ---
@@ -263,7 +263,7 @@ def confirm_timer_duration(tool_context: ToolContext, duration_seconds: int, dur
     }
 
 # Instantiate the tools
-recipe_tool = RecipeManagerTool(recipe_steps)
+recipe_tool = RecipeManagerTool(recipe["steps"])
 
 # --- Enhanced Agent with Better Timer Handling ---
 sous_chef_agent = Agent(
@@ -278,7 +278,7 @@ sous_chef_agent = Agent(
         wait_for_user_confirmation,
         exit_loop
     ],
-    instruction=f"""You are a friendly Sous Chef helping users cook {recipe_name} step by step.
+    instruction=f"""You are a friendly Sous Chef helping users cook {recipe["name"]} step by step.
 
 IMPORTANT: Always provide text responses explaining what you're doing, even when calling functions!
 
