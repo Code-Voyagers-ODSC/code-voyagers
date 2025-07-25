@@ -207,7 +207,7 @@ async def run_agent_query(agent, query, session):
         session_id=session.id,
         new_message=Content(parts=[Part(text=query)], role="user")
     ):
-        logger.info(f"[ADK Event] {event.type}: {event.content.parts[0].text if event.content and event.content.parts else ''}")
+        logger.info(f"[ADK Event] {event.event_type}: {event.content.parts[0].text if event.content and event.content.parts else ''}")
         if event.is_final_response():
             if event.content and event.content.parts:
                 final_response = event.content.parts[0].text
