@@ -16,6 +16,11 @@ from google.adk.tools import google_search  # Import the tool
 
 logger.add("src/sous_chef_agent/sous_chef_agent.log", rotation="500 MB") # Log to file, rotate if file size exceeds 500 MB
 
+# Ensure log file is truncated on each run for easier debugging
+if os.path.exists("src/sous_chef_agent/sous_chef_agent.log"):
+    with open("src/sous_chef_agent/sous_chef_agent.log", "w") as f:
+        f.truncate(0)
+
 import time
 import re
 
@@ -137,14 +142,14 @@ step_reader_agent = Agent(
 chef_instructor_agent = Agent(
     name="ChefInstructorAgent",
     model=MODEL,
-    tools=[timer_tool],
+    tools=[timer_tool, user_confirmation_tool.wait_for_confirmation],
     instruction=f"""You are an expert chef's assistant.
     Your current instruction is: {{current_step}}
 
     1. If the current step is '{COMPLETION_PHRASE}', do nothing and output that phrase.
     2. Otherwise, clearly and concisely state the instruction to the user.
     3. **Analyze the instruction for a time duration.** If you see a time like "30-35 minutes" or "10 seconds", you MUST call the `timer_tool`. Convert the time to seconds (e.g., 30 minutes = 1800 seconds). Use the lower number if there is a range.
-    4. After stating the instruction (and setting a timer if needed), explicitly tell the user to type 'next' when they are ready for the next step.
+    4. After stating the instruction (and setting a timer if needed), you MUST call the `user_confirmation_tool.wait_for_confirmation` tool. This will pause the agent and wait for the user to type 'next' before proceeding.
     """
 )
 
