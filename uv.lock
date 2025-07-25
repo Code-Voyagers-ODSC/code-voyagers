@@ -136,6 +136,7 @@ dependencies = [
     { name = "google-adk" },
     { name = "google-generativeai" },
     { name = "loguru" },
+    { name = "pydantic" },
     { name = "pyprojroot" },
 ]
 
@@ -144,6 +145,7 @@ requires-dist = [
     { name = "google-adk", specifier = ">=1.8.0" },
     { name = "google-generativeai", specifier = ">=0.8.5" },
     { name = "loguru", specifier = ">=0.7.3" },
+    { name = "pydantic", specifier = ">=2.11.7" },
     { name = "pyprojroot", specifier = ">=0.3.0" },
 ]
 
