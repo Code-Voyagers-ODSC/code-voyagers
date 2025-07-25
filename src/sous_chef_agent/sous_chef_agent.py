@@ -211,7 +211,7 @@ async def run_agent_query(agent, query, session):
     """A simplified runner for testing."""
     runner = Runner(agent=agent, session_service=session_service, app_name=APP_NAME)
     final_response = ""
-    long_running_tool_ids = set()
+    pending_long_running_tool_calls = []
     logger.info(f"> User: {query}")
     async for event in runner.run_async(
         user_id=USER_ID,
@@ -224,15 +224,15 @@ async def run_agent_query(agent, query, session):
                     logger.info(f"[ADK Event] Author: {event.author}, Text: {part.text}")
                 elif part.function_call:
                     logger.info(f"[ADK Event] Author: {event.author}, Function Call: {part.function_call.name}({part.function_call.args})")
+                    if event.long_running_tool_ids and part.function_call.id in event.long_running_tool_ids:
+                        pending_long_running_tool_calls.append(part.function_call)
         else:
             logger.info(f"[ADK Event] Author: {event.author}, No content parts.")
-        if event.long_running_tool_ids:
-            long_running_tool_ids.update(event.long_running_tool_ids)
         if event.is_final_response():
             if event.content and event.content.parts:
                 final_response = event.content.parts[0].text
                 logger.info(f"< Agent: {final_response}")
-    return final_response, long_running_tool_ids
+    return final_response, pending_long_running_tool_calls
 
 async def main():
     """Simulates a user interaction with the Sous Chef agent."""
@@ -241,35 +241,42 @@ async def main():
     session = await session_service.create_session(app_name=APP_NAME, user_id=USER_ID)
 
     # Start the conversation
-    response, long_running_tool_ids = await run_agent_query(sous_chef_agent, "start", session)
+    response, pending_tools = await run_agent_query(sous_chef_agent, "start", session)
 
     # Loop through the recipe steps
     while True:
-        user_input = input("\n(Type 'next' to continue, or 'quit' to exit): ")
-        if user_input.lower() == 'quit':
-            break
+        if pending_tools:
+            # Agent is waiting for human confirmation
+            user_input = input("\n(Agent is waiting for confirmation. Type 'next' to continue, or 'quit' to exit): ")
+            if user_input.lower() == 'quit':
+                break
 
-        if user_input.lower() == 'next':
-            if user_confirmation_tool.wait_for_confirmation.id in long_running_tool_ids:
-                # Send a FunctionResponse to complete the long-running tool
+            if user_input.lower() == 'next':
+                # Assuming only one long-running tool for user confirmation
+                pending_tool = pending_tools[0]
                 updated_function_response_part = Content(
                     parts=[
                         Part(
                             function_response=types.FunctionResponse(
-                                id=user_confirmation_tool.wait_for_confirmation.id,
-                                name=user_confirmation_tool.wait_for_confirmation.name,
+                                id=pending_tool.id,
+                                name=pending_tool.name,
                                 response={"status": "completed", "message": "User confirmed."},
                             )
                         )
                     ],
                     role="user",
                 )
-                response, long_running_tool_ids = await run_agent_query(sous_chef_agent, updated_function_response_part, session)
+                response, pending_tools = await run_agent_query(sous_chef_agent, updated_function_response_part, session)
             else:
-                print("Agent is not waiting for confirmation. Please wait for the agent to ask for 'next'.")
-                response, long_running_tool_ids = await run_agent_query(sous_chef_agent, user_input, session)
+                print("Please type 'next' to continue.")
+                # Re-run the agent with the same pending tool, effectively re-prompting
+                response, pending_tools = await run_agent_query(sous_chef_agent, Content(parts=[Part(text=user_input)], role="user"), session)
         else:
-            response, long_running_tool_ids = await run_agent_query(sous_chef_agent, user_input, session)
+            # Agent is ready for general user input or has completed a turn
+            user_input = input("\n(Type 'next' to get next step, or 'quit' to exit): ")
+            if user_input.lower() == 'quit':
+                break
+            response, pending_tools = await run_agent_query(sous_chef_agent, user_input, session)
 
         if COMPLETION_PHRASE in response:
             break
