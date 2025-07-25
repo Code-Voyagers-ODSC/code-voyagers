@@ -180,7 +180,7 @@ async def run_agent_query(agent, query, session):
     """A simplified runner for testing."""
     runner = Runner(agent=agent, session_service=session_service, app_name=APP_NAME)
     final_response = ""
-    logger.info(f"\n> User: {query}")
+    logger.info(f"> User: {query}")
     async for event in runner.run_async(
         user_id=USER_ID,
         session_id=session.id,
@@ -189,8 +189,7 @@ async def run_agent_query(agent, query, session):
         if event.is_final_response():
             if event.content and event.content.parts:
                 final_response = event.content.parts[0].text
-                logger.info(f"
-< Agent: {final_response}")
+                logger.info(f"< Agent: {final_response}")
     return final_response
 
 async def main():
