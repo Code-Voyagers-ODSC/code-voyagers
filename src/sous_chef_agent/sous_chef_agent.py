@@ -1,3 +1,4 @@
+import os
 from loguru import logger
 import sys
 
@@ -8,7 +9,6 @@ logger.add(sys.stderr, level="INFO")
 # Add file handler
 logger.add(os.path.join(os.getcwd(), "sous_chef_agent.log"), rotation="500 MB", diagnose=True)
 
-import os
 import google.generativeai as genai
 from dotenv import load_dotenv
 
