@@ -1,13 +1,7 @@
 import os
 import google.generativeai as genai
 from dotenv import load_dotenv
-from google.adk.agents import Agent, SequentialAgent, LoopAgent
-from google.adk.tools import ToolContext
-from google.adk.tools.base_tool import BaseTool
-from google.adk.runners import Runner
-from google.adk.sessions import InMemorySessionService
-from google.genai.types import Content, Part
-import asyncio
+
 from loguru import logger
 import sys
 
@@ -17,6 +11,14 @@ logger.remove()
 logger.add(sys.stderr, level="INFO")
 # Add file handler
 logger.add("sous_chef_agent.log", rotation="500 MB")
+
+from google.adk.agents import Agent, SequentialAgent, LoopAgent
+from google.adk.tools import ToolContext
+from google.adk.tools.base_tool import BaseTool
+from google.adk.runners import Runner
+from google.adk.sessions import InMemorySessionService
+from google.genai.types import Content, Part
+import asyncio
 
 from google.adk.agents import Agent
 from google.adk.tools import google_search  # Import the tool
