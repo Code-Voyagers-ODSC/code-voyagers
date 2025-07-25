@@ -1,17 +1,22 @@
 # agents/suggester_agent.py
 
 import json
+import sys
 from typing import List, Dict
 from dotenv import load_dotenv
 from pyprojroot.here import here
 from pydantic import BaseModel, Field
+
+# Add project root to Python path using pyprojroot
+project_root = here()
+sys.path.insert(0, str(project_root))
 
 from google.adk.agents import LlmAgent
 from google.adk.sessions import InMemorySessionService
 from google.adk.runners import Runner
 from google.genai import types
 
-from tools.search_tool import web_search_recipes_tool
+from src.tools.search_tool import web_search_recipes_tool
 
 load_dotenv(here(".env"))
 
