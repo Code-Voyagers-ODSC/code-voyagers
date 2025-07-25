@@ -134,7 +134,7 @@ chef_instructor_agent = Agent(
     1. If the current step is '{COMPLETION_PHRASE}', do nothing and output that phrase.
     2. Otherwise, clearly and concisely state the instruction to the user.
     3. **Analyze the instruction for a time duration.** If you see a time like "30-35 minutes" or "10 seconds", you MUST call the `timer_tool`. Convert the time to seconds (e.g., 30 minutes = 1800 seconds). Use the lower number if there is a range.
-    4. After stating the instruction (and setting a timer if needed), explicitly tell the user to type 'next' when they are ready for the next step. Do NOT provide the next step until the user types 'next'.
+    4. After stating the instruction (and setting a timer if needed), explicitly tell the user to type 'next' when they are ready for the next step.
     """
 )
 
@@ -150,23 +150,10 @@ completion_checker_agent = Agent(
     """
 )
 
-# Agent 4 (in loop): Waits for user confirmation to advance
-user_confirmation_agent = Agent(
-    name="UserConfirmationAgent",
-    model=MODEL,
-    tools=[recipe_tool.advance_step],
-    instruction=f"""You are responsible for advancing the recipe.
-    The user has just been given an instruction.
-    Your only job is to check if the user's last input was 'next'.
-    If the user's last input was 'next', you MUST call the `advance_step` tool.
-    If the user's last input was NOT 'next', you MUST tell the user to type 'next' to continue.
-    """
-)
-
 # The LoopAgent orchestrates the step-by-step cooking process
 cooking_loop = LoopAgent(
     name="CookingLoop",
-    sub_agents=[step_reader_agent, chef_instructor_agent, user_confirmation_agent, completion_checker_agent],
+    sub_agents=[step_reader_agent, chef_instructor_agent, completion_checker_agent],
     max_iterations=len(feta_pasta_steps) + 2 # Set a max iteration to avoid infinite loops
 )
 
@@ -207,7 +194,7 @@ async def run_agent_query(agent, query, session):
         session_id=session.id,
         new_message=Content(parts=[Part(text=query)], role="user")
     ):
-        logger.info(f"[ADK Event] {event}")
+        logger.info(f"[ADK Event] Author: {event.author}, Content: {event.content.parts[0].text if event.content and event.content.parts else ''}")
         if event.is_final_response():
             if event.content and event.content.parts:
                 final_response = event.content.parts[0].text
@@ -229,7 +216,15 @@ async def main():
         if user_input.lower() == 'quit':
             break
 
-        response = await run_agent_query(sous_chef_agent, user_input, session)
+        if user_input.lower() == 'next':
+            # Manually create a ToolContext to advance the step
+            tool_context = ToolContext(agent_name="MainFunction", state=session.get_state(APP_NAME, USER_ID))
+            recipe_tool.advance_step(tool_context)
+            # Update the session state after advancing the step
+            session.set_state(APP_NAME, USER_ID, tool_context.state)
+            response = await run_agent_query(sous_chef_agent, "continue", session)
+        else:
+            response = await run_agent_query(sous_chef_agent, user_input, session)
 
         if COMPLETION_PHRASE in response:
             break
