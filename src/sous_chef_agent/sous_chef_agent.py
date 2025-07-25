@@ -112,10 +112,7 @@ class RecipeManagerTool(BaseTool):
 
 class UserConfirmationTool(LongRunningFunctionTool):
     def __init__(self):
-        super().__init__(
-            name="user_confirmation_tool",
-            description="A tool to wait for user confirmation before proceeding."
-        )
+        super().__init__(self.wait_for_confirmation)
 
     def wait_for_confirmation(self, tool_context: ToolContext) -> dict:
         logger.info(f"  [Tool Call] wait_for_confirmation triggered by {tool_context.agent_name}")
