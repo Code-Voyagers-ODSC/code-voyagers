@@ -218,7 +218,14 @@ async def run_agent_query(agent, query, session):
         session_id=session.id,
         new_message=Content(parts=[Part(text=query)], role="user")
     ):
-        logger.info(f"[ADK Event] Author: {event.author}, Content: {event.content.parts[0].text if event.content and event.content.parts else ''}")
+        if event.content and event.content.parts:
+            for part in event.content.parts:
+                if part.text:
+                    logger.info(f"[ADK Event] Author: {event.author}, Text: {part.text}")
+                elif part.function_call:
+                    logger.info(f"[ADK Event] Author: {event.author}, Function Call: {part.function_call.name}({part.function_call.args})")
+        else:
+            logger.info(f"[ADK Event] Author: {event.author}, No content parts.")
         if event.long_running_tool_ids:
             long_running_tool_ids.update(event.long_running_tool_ids)
         if event.is_final_response():
