@@ -13,6 +13,7 @@ import asyncio
 from loguru import logger
 import time
 import re
+from pyprojroot.here import here
 
 # Suppress all warnings related to function calls and non-text parts
 warnings.filterwarnings("ignore")
@@ -30,7 +31,7 @@ if os.path.exists("src/sous_chef_agent/sous_chef_agent.log"):
         f.truncate(0)
 
 # --- API Key Configuration ---
-load_dotenv(dotenv_path="src/.env")
+load_dotenv(dotenv_path=here(".env"))
 api_key = os.environ.get("GEMINI_API_KEY")
 if not api_key:
     raise ValueError("GEMINI_API_KEY environment variable not set. Please set it to your API key.")

@@ -8,4 +8,5 @@ dependencies = [
     "google-adk>=1.8.0",
     "google-generativeai>=0.8.5",
     "loguru>=0.7.3",
+    "pyprojroot>=0.3.0",
 ]

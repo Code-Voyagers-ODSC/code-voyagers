@@ -4,6 +4,7 @@ import json
 import re
 from typing import List
 from dotenv import load_dotenv
+from pyprojroot.here import here
 
 from google.adk.agents import LlmAgent
 from google.adk.sessions import InMemorySessionService
@@ -12,7 +13,7 @@ from google.genai import types
 
 from tools.search_tool import web_search_recipes_tool
 
-load_dotenv()  # loads GOOGLE_API_KEY, etc.
+load_dotenv(here(".env"))  # loads GOOGLE_API_KEY, etc.
 
 # Define the Agent, passing your search function directly
 recipe_agent = LlmAgent(
