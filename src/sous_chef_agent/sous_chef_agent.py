@@ -9,11 +9,17 @@ from google.adk.sessions import InMemorySessionService
 from google.genai.types import Content, Part
 import asyncio
 from loguru import logger
+import sys
+
+# Remove default handler to prevent duplicate logs
+logger.remove()
+# Add console handler
+logger.add(sys.stderr, level="INFO")
+# Add file handler
+logger.add("sous_chef_agent.log", rotation="500 MB")
 
 from google.adk.agents import Agent
 from google.adk.tools import google_search  # Import the tool
-
-logger.add("sous_chef_agent.log", rotation="500 MB") # Log to file, rotate if file size exceeds 500 MB
 
 import time
 import re
