@@ -3,12 +3,14 @@ import logging
 import os
 import google.generativeai as genai
 from dotenv import load_dotenv
-from google.adk.agents import Agent
+from google.adk.agents import Agent, SequentialAgent, LoopAgent
 from google.adk.tools import ToolContext
 from google.adk.tools.base_tool import BaseTool
+from google.adk.tools.long_running_tool import LongRunningFunctionTool
 from google.adk.runners import Runner
 from google.adk.sessions import InMemorySessionService
 from google.genai.types import Content, Part
+from google.genai import types
 import asyncio
 from loguru import logger
 import time
@@ -265,7 +267,7 @@ def confirm_timer_duration(tool_context: ToolContext, duration_seconds: int, dur
 # Instantiate the tools
 recipe_tool = RecipeManagerTool(recipe_steps)
 
-# --- Sous Chef Agent ---
+# --- Enhanced Agent with Better Timer Handling ---
 sous_chef_agent = Agent(
     name="SousChefAgent",
     model=MODEL,
@@ -275,7 +277,6 @@ sous_chef_agent = Agent(
         parse_timer_duration,
         timer_tool, 
         set_custom_timer,
-        confirm_timer_duration,
         wait_for_user_confirmation,
         exit_loop
     ],
@@ -288,54 +289,52 @@ WORKFLOW:
    - Greet the user warmly and explain you'll guide them through the recipe
    - Call get_current_step to see the first step
    - Present the step clearly and enthusiastically 
-   - Call wait_for_user_confirmation and STOP
+   - Call wait_for_user_confirmation (but don't repeat the message)
 
 2. **When user says 'next' for regular steps**:
    - Call advance_step to move to the next step
    - Call get_current_step to see the new step
    - Present the step clearly and enthusiastically
    - If step mentions a timer, follow timer workflow below
-   - If no timer, call wait_for_user_confirmation and STOP
+   - If no timer, call wait_for_user_confirmation (but don't repeat the message)
 
 3. **TIMER WORKFLOW** (when step mentions timing/timer):
    
-   **FIRST TIME presenting timer step:**
+   **Timer step presentation:**
    - Present the step exactly as written
    - Call parse_timer_duration with the step text to extract timer duration
-   - If timer found, call confirm_timer_duration with the parsed duration
+   - If timer found, say: "I'll start a [duration] timer when you're ready. Type 'start' to begin, or tell me a different duration."
    - STOP and wait for user response
    
-   **USER RESPONSES to timer confirmation:**
-   - If user says "start" or "yes" or "ok": Call timer_tool with the confirmed duration immediately
-   - If user provides different duration (e.g., "30 seconds", "5 minutes"): 
-     * Call set_custom_timer with their input
-     * Then call timer_tool with the custom duration immediately
-   - If user says "next": Call timer_tool with confirmed duration immediately
-   
-   **HANDLING USER CORRECTIONS:**
-   - If user says things like "it's 20 seconds" or "should be minutes": 
-     * Call set_custom_timer to parse their correction
-     * Call timer_tool with the corrected duration immediately
-   - Always acknowledge corrections: "Got it! Setting timer for [corrected duration]"
+   **USER RESPONSES:**
+   - If user says "start": Call timer_tool immediately 
+   - If user provides different duration: Call set_custom_timer, then wait for "start"
+   - If user says "next": Treat as "start" and call timer_tool
 
 4. **When recipe is complete**:
    - If get_current_step returns "The recipe is finished", call exit_loop
    - Congratulate the user!
 
 TIMER PARSING RULES:
-- ALWAYS use parse_timer_duration tool first when you see timer-related text
-- NEVER assume or guess timer durations
-- Let the tool extract the exact duration from the recipe text
-- Always confirm duration with user before starting timer
-- Allow users to change the duration if they want
+- Use parse_timer_duration to extract timer duration from recipe text
+- Present timer option simply: "I'll start a [duration] timer when you're ready. Type 'start' to begin."
+- Don't use confirm_timer_duration tool - just parse and offer to start
+- If user provides custom duration, update and wait for "start"
+- Keep messaging simple and direct
+
+MESSAGING RULES:
+- Don't repeat instructions or confirmations
+- After calling wait_for_user_confirmation, don't add extra text
+- Keep responses concise and helpful
+- Avoid saying "Okay" multiple times
 
 EXAMPLES:
-- Recipe says "20-second timer" → parse_timer_duration finds 20 seconds → confirm with user
-- User says "it's 5 minutes" → set_custom_timer("5 minutes") → timer_tool(300)
-- User says "30 sec" → set_custom_timer("30 sec") → timer_tool(30)
-
-Be helpful and always double-check timer durations with users!"""
+- Recipe timer step → "I'll start a 20 seconds timer when you're ready. Type 'start' to begin."
+- User says "5 minutes" → "Timer updated to 5 minutes. Type 'start' to begin."
+- User says "start" → timer_tool() → Timer runs"""
 )
+
+logger.info("✅ Enhanced Sous Chef Agent created with better timer parsing.")
 
 # --- Test Execution Logic ---
 
