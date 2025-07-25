@@ -408,6 +408,7 @@ async def main():
                 # If a timer was called, run the countdown AFTER the agent's response
                 if timer_called and timer_duration > 0:
                     run_countdown_timer(timer_duration)
+                    print(f"\n⏭️  Timer complete! Type 'next' to continue with the recipe.")
                 
                 # Check if recipe is completed
                 if COMPLETION_PHRASE in final_response_text or "Congratulations" in final_response_text or "recipe is complete" in final_response_text.lower():
