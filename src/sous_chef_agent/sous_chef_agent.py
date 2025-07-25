@@ -10,6 +10,9 @@ from google.genai.types import Content, Part
 import asyncio
 from loguru import logger
 
+from google.adk.agents import Agent
+from google.adk.tools import google_search  # Import the tool
+
 logger.add("sous_chef_agent.log", rotation="500 MB") # Log to file, rotate if file size exceeds 500 MB
 
 import time
@@ -140,7 +143,7 @@ completion_checker_agent = Agent(
     instruction=f"""You are the completion checker.
     The current step is: {{current_step}}
     IF AND ONLY IF the current step is the exact phrase '{COMPLETION_PHRASE}', you MUST call the `exit_loop` tool.
-    Otherwise, do nothing and output "continue".
+    Otherwise, do nothing.
     """
 )
 

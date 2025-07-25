@@ -12,6 +12,9 @@ from google.adk.runners import Runner
 from google.adk.tools import load_memory # Tool to query memory
 from google.genai.types import Content, Part
 
+from google.adk.agents import Agent
+from google.adk.tools import google_search  # Import the tool
+
 import time
 import asyncio
 from IPython.display import display, Markdown
@@ -291,3 +294,17 @@ completed_session1 = await runner.session_service.get_session(app_name=APP_NAME,
 print("\n--- Adding Session 1 to Memory ---")
 memory_service = await memory_service.add_session_to_memory(completed_session1)
 print("Session added to memory.")
+
+
+root_agent = Agent(
+   # A unique name for the agent.
+   name="basic_search_agent",
+   # The Large Language Model (LLM) that agent will use.
+   model="gemini-live-2.5-flash-preview",  # for example: model="gemini-2.0-flash-live-001" or model="gemini-2.0-flash-live-preview-04-09"
+   # A short description of the agent's purpose.
+   description="Agent to answer questions using Google Search.",
+   # Instructions to set the agent's behavior.
+   instruction="You are an expert researcher. You always stick to the facts.",
+   # Add google_search tool to perform grounding with Google search.
+   tools=[google_search]
+)
