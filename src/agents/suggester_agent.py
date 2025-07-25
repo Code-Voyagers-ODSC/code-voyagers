@@ -2,6 +2,7 @@
 
 import json
 import sys
+import re
 from typing import List, Dict
 from dotenv import load_dotenv
 from pyprojroot.here import here
@@ -64,7 +65,7 @@ class Recipe(BaseModel):
 class RecipeResponse(BaseModel):
     recipes: List[Recipe] = Field(description="List of 3-4 best matching recipes")
 
-# Define the Agent with structured output
+# Define the Agent WITHOUT structured output (since we're using tools)
 recipe_agent = LlmAgent(
     name="recipe_suggester",
     model="gemini-2.0-flash",
@@ -76,6 +77,49 @@ recipe_agent = LlmAgent(
         "• For example, if searching for 'chicken pasta garlic' and you find 'garlic chicken' recipes, adapt them.\n"
         "• Fill out all fields with relevant information from the search results.\n"
         "• If specific information isn't available, provide reasonable estimates or defaults.\n\n"
+        "Return ONLY a valid JSON array with no additional text or formatting. Each recipe must follow this EXACT structure:\n\n"
+        "[\n"
+        "  {\n"
+        "    \"id\": \"recipe_1\",\n"
+        "    \"summary\": {\n"
+        "      \"title\": \"Recipe Title\",\n"
+        "      \"link\": \"URL to recipe\",\n"
+        "      \"description\": \"Brief description\",\n"
+        "      \"estimated_time\": \"30 minutes\",\n"
+        "      \"difficulty\": \"Easy/Medium/Hard\",\n"
+        "      \"cuisine_type\": \"Italian/Asian/etc\",\n"
+        "      \"serves\": \"4 people\",\n"
+        "      \"food_safety_summary\": \"Safety notes\"\n"
+        "    },\n"
+        "    \"details\": {\n"
+        "      \"ingredients\": [\"ingredient 1\", \"ingredient 2\"],\n"
+        "      \"equipment_needed\": [\"pan\", \"oven\"],\n"
+        "      \"prep_time\": \"10 minutes\",\n"
+        "      \"cook_time\": \"20 minutes\",\n"
+        "      \"method_overview\": \"Brief cooking method\",\n"
+        "      \"key_techniques\": [\"searing\", \"baking\"],\n"
+        "      \"food_safety_details\": {\n"
+        "        \"temperature_guidelines\": \"Cook to 165°F\",\n"
+        "        \"storage_instructions\": \"Refrigerate leftovers\",\n"
+        "        \"handling_tips\": \"Wash hands after handling\"\n"
+        "      },\n"
+        "      \"dietary_info\": [\"gluten-free\", \"dairy-free\"],\n"
+        "      \"substitutions\": [\"Use olive oil instead of butter\"],\n"
+        "      \"chef_tips\": [\"Let meat rest before cutting\"],\n"
+        "      \"serving_suggestions\": [\"Serve with salad\"],\n"
+        "      \"make_ahead_notes\": \"Can be prepared 1 day ahead\",\n"
+        "      \"troubleshooting\": [\"If too dry, add more liquid\"]\n"
+        "    },\n"
+        "    \"sous_chef_format\": {\n"
+        "      \"name\": \"Recipe Title\",\n"
+        "      \"steps\": {\n"
+        "        \"1\": \"First step with specific instructions\",\n"
+        "        \"2\": \"Second step with timing (e.g., 'Bake for 20 minutes')\",\n"
+        "        \"3\": \"Continue until complete\"\n"
+        "      }\n"
+        "    }\n"
+        "  }\n"
+        "]\n\n"
         "IMPORTANT FOR SOUS_CHEF_FORMAT:\n"
         "• Break down the cooking method into clear, sequential numbered steps\n"
         "• Each step should be actionable and specific\n"
@@ -86,8 +130,8 @@ recipe_agent = LlmAgent(
         "• Include any timer-based steps clearly (the sous chef agent will detect these)\n\n"
     ),
     description="Suggest cooking recipes based on input ingredients",
-    tools=[web_search_recipes_tool],
-    response_schema=RecipeResponse  # This enables structured output!
+    tools=[web_search_recipes_tool]
+    # Note: No output_schema because we're using tools
 )
 
 async def smart_recipe_search_handler(ingredients: List[str]) -> RecipeResponse:
@@ -119,31 +163,51 @@ async def smart_recipe_search_handler(ingredients: List[str]) -> RecipeResponse:
     payload = json.dumps({"ingredients": ingredients})
     user_msg = types.Content(role="user", parts=[types.Part(text=payload)])
 
-    # 4) Run the agent - it will return structured data automatically
-    structured_response = None
+    # 4) Run the agent and parse the JSON response manually
+    raw_response = None
     async for evt in runner.run_async(
         user_id="anonymous",
         session_id=session.id,
         new_message=user_msg
     ):
         if evt.is_final_response():
-            # With structured output, the response is already parsed!
-            if hasattr(evt, 'structured_response') and evt.structured_response:
-                structured_response = evt.structured_response
-            else:
-                # Fallback: try to parse from text if structured response not available
-                try:
-                    response_text = evt.content.parts[0].text
-                    response_dict = json.loads(response_text)
-                    structured_response = RecipeResponse(**response_dict)
-                except Exception as e:
-                    return RecipeResponse(recipes=[])  # Return empty response on error
+            raw_response = evt.content.parts[0].text
             break
 
-    if not structured_response:
+    if not raw_response:
         return RecipeResponse(recipes=[])
 
-    return structured_response
+    # 5) Clean and parse the JSON response, then convert to Pydantic
+    try:
+        cleaned = clean_json_response(raw_response)
+        recipes_dict = json.loads(cleaned)
+        
+        # Convert dictionary to Pydantic models
+        recipes = []
+        for recipe_dict in recipes_dict:
+            recipe = Recipe(**recipe_dict)
+            recipes.append(recipe)
+            
+        return RecipeResponse(recipes=recipes)
+        
+    except Exception as e:
+        print(f"Error parsing response: {e}")
+        print(f"Raw response preview: {raw_response[:500] if raw_response else 'None'}")
+        return RecipeResponse(recipes=[])
+
+def clean_json_response(txt: str) -> str:
+    """Clean the JSON response from the agent"""
+    # strip markdown fences
+    txt = re.sub(r'```json\s*', '', txt)
+    txt = re.sub(r'```', '', txt)
+    # extract the array
+    start = txt.find('[')
+    end = txt.rfind(']')
+    if start == -1 or end == -1:
+        raise ValueError("No JSON array found")
+    arr = txt[start:end+1]
+    # remove trailing commas
+    return re.sub(r',\s*([\]}])', r'\1', arr)
 
 def extract_sous_chef_format(recipe_response: RecipeResponse, recipe_index: int = 0) -> SousChefFormat:
     """
