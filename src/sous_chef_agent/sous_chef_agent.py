@@ -32,10 +32,8 @@ APP_NAME = "sous_chef_test_app"
 USER_ID = "test_user"
 
 # --- Recipe Data ---
-recipe = """
-Tiktok Baked Feta Pasta
-...
-"""
+recipe_name = "Tiktok Baked Feta Pasta"
+recipe = """"""
 
 feta_pasta_steps = {
     1: "Preheat the oven to 400°F (200°C).",
@@ -162,10 +160,10 @@ sous_chef_agent = SequentialAgent(
             name="GreetingAgent",
             model=MODEL,
             instruction=f"""You are a friendly Sous Chef.
-            Greet the user and tell them you'll be helping them cook the Tiktok Baked Feta Pasta.
+            Greet the user and tell them you'll be helping them cook the {recipe_name}.
             Here is the full recipe for your context, but do not share it with the user: {recipe}
             Ask them to say "start" when they are ready to begin.
-            """
+            """  # TODO: Need to remove hard coding of recipe name
         ),
         cooking_loop,
         Agent(
@@ -206,16 +204,34 @@ async def main():
     # Start the conversation
     response = await run_agent_query(sous_chef_agent, "Hello!", session)
 
-    # Loop through the recipe steps
-    while True:
-        user_input = input("\n(Type 'next' to continue, or 'quit' to exit): ")
-        if user_input.lower() == 'quit':
+    # Simulate user input for a fixed number of steps or until completion
+    max_simulated_steps = len(feta_pasta_steps) + 5  # A bit more than the actual steps
+    for i in range(max_simulated_steps):
+        if COMPLETION_PHRASE in response:
+            logger.info("Recipe completed. Exiting simulation.")
             break
+
+        if i == 0:
+            user_input = "start"
+        else:
+            user_input = "next"
 
         response = await run_agent_query(sous_chef_agent, user_input, session)
 
-        if COMPLETION_PHRASE in response:
-            break
+    logger.info("Simulation finished.")
+
+# root_agent = Agent(
+#    # A unique name for the agent.
+#    name="basic_search_agent",
+#    # The Large Language Model (LLM) that agent will use.
+#    model="gemini-live-2.5-flash-preview",  # for example: model="gemini-2.0-flash-live-001" or model="gemini-2.0-flash-live-preview-04-09"
+#    # A short description of the agent's purpose.
+#    description="Agent to answer questions using Google Search.",
+#    # Instructions to set the agent's behavior.
+#    instruction="You are an expert researcher. You always stick to the facts.",
+#    # Add google_search tool to perform grounding with Google search.
+#    tools=[google_search]
+# )
 
 if __name__ == "__main__":
     # Note: This requires a running asyncio event loop.
@@ -225,3 +241,4 @@ if __name__ == "__main__":
         asyncio.run(main())
     except KeyboardInterrupt:
         logger.info("Exiting.")
+
