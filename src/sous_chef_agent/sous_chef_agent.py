@@ -4,6 +4,7 @@ from dotenv import load_dotenv
 from google.adk.agents import Agent, SequentialAgent, LoopAgent
 from google.adk.tools import ToolContext
 from google.adk.tools.base_tool import BaseTool
+from google.adk.tools.long_running_tool import LongRunningFunctionTool
 from google.adk.runners import Runner
 from google.adk.sessions import InMemorySessionService
 from google.genai.types import Content, Part
@@ -109,8 +110,20 @@ class RecipeManagerTool(BaseTool):
         logger.info(f"  [Tool Call] advance_step: Advanced to step {current_index + 2}")
         return {"status": "success", "message": "Advanced to next step."}
 
+class UserConfirmationTool(LongRunningFunctionTool):
+    def __init__(self):
+        super().__init__(
+            name="user_confirmation_tool",
+            description="A tool to wait for user confirmation before proceeding."
+        )
+
+    def wait_for_confirmation(self, tool_context: ToolContext) -> dict:
+        logger.info(f"  [Tool Call] wait_for_confirmation triggered by {tool_context.agent_name}")
+        return {"status": "pending", "message": "Waiting for user to type 'next'."}
+
 # Instantiate the tool
 recipe_tool = RecipeManagerTool(feta_pasta_steps)
+user_confirmation_tool = UserConfirmationTool()
 
 # --- Agent Definitions ---
 
@@ -150,10 +163,18 @@ completion_checker_agent = Agent(
     """
 )
 
+# Agent to advance the step after user confirmation
+step_advancer_agent = Agent(
+    name="StepAdvancerAgent",
+    model=MODEL,
+    tools=[recipe_tool.advance_step],
+    instruction="Your only job is to call the `advance_step` tool to move to the next recipe instruction."
+)
+
 # The LoopAgent orchestrates the step-by-step cooking process
 cooking_loop = LoopAgent(
     name="CookingLoop",
-    sub_agents=[step_reader_agent, chef_instructor_agent, completion_checker_agent],
+    sub_agents=[step_reader_agent, chef_instructor_agent, step_advancer_agent, completion_checker_agent],
     max_iterations=len(feta_pasta_steps) + 2 # Set a max iteration to avoid infinite loops
 )
 
@@ -188,6 +209,7 @@ async def run_agent_query(agent, query, session):
     """A simplified runner for testing."""
     runner = Runner(agent=agent, session_service=session_service, app_name=APP_NAME)
     final_response = ""
+    long_running_tool_ids = set()
     logger.info(f"> User: {query}")
     async for event in runner.run_async(
         user_id=USER_ID,
@@ -195,11 +217,13 @@ async def run_agent_query(agent, query, session):
         new_message=Content(parts=[Part(text=query)], role="user")
     ):
         logger.info(f"[ADK Event] Author: {event.author}, Content: {event.content.parts[0].text if event.content and event.content.parts else ''}")
+        if event.long_running_tool_ids:
+            long_running_tool_ids.update(event.long_running_tool_ids)
         if event.is_final_response():
             if event.content and event.content.parts:
                 final_response = event.content.parts[0].text
                 logger.info(f"< Agent: {final_response}")
-    return final_response
+    return final_response, long_running_tool_ids
 
 async def main():
     """Simulates a user interaction with the Sous Chef agent."""
@@ -208,7 +232,7 @@ async def main():
     session = await session_service.create_session(app_name=APP_NAME, user_id=USER_ID)
 
     # Start the conversation
-    response = await run_agent_query(sous_chef_agent, "start", session)
+    response, long_running_tool_ids = await run_agent_query(sous_chef_agent, "start", session)
 
     # Loop through the recipe steps
     while True:
@@ -217,14 +241,26 @@ async def main():
             break
 
         if user_input.lower() == 'next':
-            # Manually create a ToolContext to advance the step
-            tool_context = ToolContext(agent_name="MainFunction", state=session.get_state(APP_NAME, USER_ID))
-            recipe_tool.advance_step(tool_context)
-            # Update the session state after advancing the step
-            session.set_state(APP_NAME, USER_ID, tool_context.state)
-            response = await run_agent_query(sous_chef_agent, "continue", session)
+            if user_confirmation_tool.wait_for_confirmation.id in long_running_tool_ids:
+                # Send a FunctionResponse to complete the long-running tool
+                updated_function_response_part = Content(
+                    parts=[
+                        Part(
+                            function_response=types.FunctionResponse(
+                                id=user_confirmation_tool.wait_for_confirmation.id,
+                                name=user_confirmation_tool.wait_for_confirmation.name,
+                                response={"status": "completed", "message": "User confirmed."},
+                            )
+                        )
+                    ],
+                    role="user",
+                )
+                response, long_running_tool_ids = await run_agent_query(sous_chef_agent, updated_function_response_part, session)
+            else:
+                print("Agent is not waiting for confirmation. Please wait for the agent to ask for 'next'.")
+                response, long_running_tool_ids = await run_agent_query(sous_chef_agent, user_input, session)
         else:
-            response = await run_agent_query(sous_chef_agent, user_input, session)
+            response, long_running_tool_ids = await run_agent_query(sous_chef_agent, user_input, session)
 
         if COMPLETION_PHRASE in response:
             break
