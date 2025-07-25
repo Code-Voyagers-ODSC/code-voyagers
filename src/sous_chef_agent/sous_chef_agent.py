@@ -1,7 +1,3 @@
-import os
-import google.generativeai as genai
-from dotenv import load_dotenv
-
 from loguru import logger
 import sys
 
@@ -10,7 +6,11 @@ logger.remove()
 # Add console handler
 logger.add(sys.stderr, level="INFO")
 # Add file handler
-logger.add("sous_chef_agent.log", rotation="500 MB")
+logger.add("sous_chef_agent.log", rotation="500 MB", diagnose=True)
+
+import os
+import google.generativeai as genai
+from dotenv import load_dotenv
 
 from google.adk.agents import Agent, SequentialAgent, LoopAgent
 from google.adk.tools import ToolContext
