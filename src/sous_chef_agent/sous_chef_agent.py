@@ -267,7 +267,7 @@ def confirm_timer_duration(tool_context: ToolContext, duration_seconds: int, dur
 # Instantiate the tools
 recipe_tool = RecipeManagerTool(recipe_steps)
 
-# --- Enhanced Agent with Better Timer Handling ---
+# --- Sous Chef Agent ---
 sous_chef_agent = Agent(
     name="SousChefAgent",
     model=MODEL,
@@ -338,8 +338,6 @@ EXAMPLES:
 
 Be helpful and always double-check timer durations with users!"""
 )
-
-logger.info("✅ Enhanced Sous Chef Agent created with better timer parsing.")
 
 # --- Test Execution Logic ---
 
