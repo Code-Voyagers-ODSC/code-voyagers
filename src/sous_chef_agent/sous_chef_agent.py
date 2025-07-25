@@ -6,7 +6,7 @@ logger.remove()
 # Add console handler
 logger.add(sys.stderr, level="INFO")
 # Add file handler
-logger.add("sous_chef_agent.log", rotation="500 MB", diagnose=True)
+logger.add(os.path.join(os.getcwd(), "sous_chef_agent.log"), rotation="500 MB", diagnose=True)
 
 import os
 import google.generativeai as genai
@@ -212,21 +212,17 @@ async def main():
     # Start the conversation
     response = await run_agent_query(sous_chef_agent, "Hello!", session)
 
-    # Simulate user input for a fixed number of steps or until completion
-    max_simulated_steps = len(feta_pasta_steps) + 5  # A bit more than the actual steps
-    for i in range(max_simulated_steps):
-        if COMPLETION_PHRASE in response:
-            logger.info("Recipe completed. Exiting simulation.")
+    # Loop through the recipe steps
+    while True:
+        user_input = input("\n(Type 'next' to continue, or 'quit' to exit): ")
+        if user_input.lower() == 'quit':
             break
-
-        if i == 0:
-            user_input = "start"
-        else:
-            user_input = "next"
 
         response = await run_agent_query(sous_chef_agent, user_input, session)
 
-    logger.info("Simulation finished.")
+        if COMPLETION_PHRASE in response:
+            break
+
 
 # root_agent = Agent(
 #    # A unique name for the agent.
