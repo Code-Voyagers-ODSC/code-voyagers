@@ -10,6 +10,8 @@ from google.genai.types import Content, Part
 import asyncio
 from loguru import logger
 
+logger.add("sous_chef_agent.log", rotation="500 MB") # Log to file, rotate if file size exceeds 500 MB
+
 import time
 import re
 
@@ -219,4 +221,4 @@ if __name__ == "__main__":
     try:
         asyncio.run(main())
     except KeyboardInterrupt:
-        print("\nExiting.")
+        logger.info("Exiting.")
