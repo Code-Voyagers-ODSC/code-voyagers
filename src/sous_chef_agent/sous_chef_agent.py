@@ -199,8 +199,15 @@ async def run_agent_query(agent, query, session):
     ):
         if event.is_final_response():
             if event.content and event.content.parts:
-                final_response = event.content.parts[0].text
-                logger.info(f"< Agent: {final_response}")
+                final_response_text = ""
+                for part in event.content.parts:
+                    if part.text:
+                        final_response_text += part.text
+                    if part.function_call:
+                        logger.info(f"< Agent called tool: {part.function_call.name} with args: {part.function_call.args}")
+                if final_response_text:
+                    final_response = final_response_text
+                    logger.info(f"< Agent: {final_response}")
     return final_response
 
 async def main():
