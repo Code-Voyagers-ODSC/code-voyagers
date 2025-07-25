@@ -242,37 +242,38 @@ async def main():
                 for part in event.content.parts:
                     if part.text:
                         logger.info(f"[ADK Event] Author: {event.author}, Text: {part.text}")
-                        print(f"< {event.author}: {part.text}")
                         final_response_text += part.text
                     elif part.function_call:
                         logger.info(f"[ADK Event] Author: {event.author}, Function Call: {part.function_call.name}({part.function_call.args})")
-                        print(f"🔧 Tool called: {part.function_call.name}({part.function_call.args})")
                         
                         # Check if this is a wait for user confirmation
                         if part.function_call.name == "wait_for_user_confirmation":
                             waiting_for_user = True
                         elif part.function_call.name == "timer_tool":
                             timer_called = True
-                            print(f"⏳ Timer started for {part.function_call.args} seconds!")
             else:
                 logger.info(f"[ADK Event] Author: {event.author}, No content parts.")
             
             if event.is_final_response():
                 logger.info(f"< Agent Final Response: {final_response_text}")
+                
+                # Clean console output - show the complete response
+                print(f"\n🍴 Sous Chef: {final_response_text}")
+                
                 # Check if recipe is completed
                 if COMPLETION_PHRASE in final_response_text or "Congratulations" in final_response_text or "recipe is complete" in final_response_text.lower():
                     print("🎉 Recipe completed! Enjoy your meal!")
                     return
                 break
         
-        # Check current session state after each interaction
+        # Check current session state after each interaction (for debugging only)
         current_session = await session_service.get_session(
             app_name=APP_NAME,
             user_id=USER_ID, 
             session_id=session.id
         )
         logger.info(f"Current session state: {current_session.state}")
-        print(f"📊 Session state: {current_session.state}")
+        # Note: Session state is logged but not shown to user
         
         # Get user input
         if waiting_for_user:
