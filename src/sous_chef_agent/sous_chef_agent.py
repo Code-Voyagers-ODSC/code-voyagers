@@ -7,7 +7,7 @@ logger.remove()
 # Add console handler
 logger.add(sys.stderr, level="INFO")
 # Add file handler
-logger.add(os.path.join(os.getcwd(), "sous_chef_agent.log"), rotation="500 MB", diagnose=True)
+logger.add(os.path.join(os.path.dirname(__file__), "sous_chef_agent.log"), rotation="500 MB", diagnose=True, mode='w')
 
 import google.generativeai as genai
 from dotenv import load_dotenv
