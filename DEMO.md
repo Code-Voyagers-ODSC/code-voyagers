@@ -8,10 +8,10 @@ Please record a 3–5 minute walkthrough showing:
 
 ---
 
-📺 **Provide a Hosted Public Video Link (YouTube unlisted / Loom / MP4):**  MUST BE ON A HOS
+📺 **Provide a Hosted Public Video Link (YouTube unlisted / Loom / MP4):**  MUST BE ON A HOST
 https://your.video.link.here
 
-PLEASE DO NOT UPLOAD RAW VIDOE FILES. These submissions will not be reviewed.
+PLEASE DO NOT UPLOAD RAW VIDEO FILES. These submissions will not be reviewed.
 
 ### Timestamps
 
@@ -19,5 +19,3 @@ PLEASE DO NOT UPLOAD RAW VIDOE FILES. These submissions will not be reviewed.
 - **00:30–01:30** — User input → Planning step  
 - **01:30–02:30** — Tool calls & memory retrieval  
 - **02:30–03:30** — Final output & edge-case handling
-
-- Vidoes longer than 5 minutes may not be reviewd. 
