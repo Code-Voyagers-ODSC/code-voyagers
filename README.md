@@ -13,20 +13,19 @@ An AI-powered recipe assistant that finds recipes based on your ingredients and 
 - 🛡️ **Food Safety Tips**: Includes temperature guidelines and safe handling practices
 - 📱 **Responsive Design**: Works on desktop and mobile devices
 
-## Sample Screenshots
+## App Screenshots
 
-> Click to enlarge
+<img src="images/Home Page.png" alt="Super Spoon Home Screen" width="250" />
+
+<img src="images/Detail Page.png" alt="Recipe Search Results" width="250" />
+
+<img src="images/List Page.png" alt="Interactive Cooking Mode" width="250" />
+
+<img src="images/Timer Page.png" alt="Built-in Timer Popup" width="250" />
 
 <div style="display: flex; flex-wrap: wrap; gap: 1rem;">
 
-<!-- Replace these paths and alt‑text with your real screenshots -->
-<img src="images/Home Page.png" alt="Super Spoon Home Screen" width="250" />
-<img src="images/Detail Page.png" alt="Recipe Search Results" width="250" />
-<img src="images/List Page.png" alt="Interactive Cooking Mode" width="250" />
-<img src="images/Timer Page.png" alt="Built-in Timer Popup" width="250" />
-
 </div>
- 
 
 ## 🧑‍🍳 Using the Agent
 

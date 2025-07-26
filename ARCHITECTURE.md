@@ -10,7 +10,7 @@
 
 Below, sketch (ASCII, hand-drawn JPEG/PNG pasted in, or ASCII art) the high-level components of your agent.
 
-![Initial MVP Flow Diagram](images/arch-4pm.jpg)
+![Initial MVP Flow Diagram](images/architecture.png)
 
 ## Components
 
