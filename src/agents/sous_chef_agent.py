@@ -1,4 +1,4 @@
-# src/backend/agents/sous_chef_agent.py
+# agents/sous_chef_agent.py
 
 import warnings
 import logging
