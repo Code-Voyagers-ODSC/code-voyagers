@@ -1,3 +1,5 @@
+# agents/sous_chef_agent.py
+
 import warnings
 import logging
 import os
@@ -26,17 +28,17 @@ sys.path.insert(0, str(project_root))
 
 from tools.timer_tool import parse_timer_duration, timer_tool, set_custom_timer, web_timer_tool, check_timer_completion
 
-warnings.filterwarnings("ignore")
-logging.getLogger("google").setLevel(logging.ERROR)
-logging.getLogger("google.adk").setLevel(logging.ERROR)
-logging.getLogger("google.generativeai").setLevel(logging.ERROR)
+# warnings.filterwarnings("ignore")
+# logging.getLogger("google").setLevel(logging.ERROR)
+# logging.getLogger("google.adk").setLevel(logging.ERROR)
+# logging.getLogger("google.generativeai").setLevel(logging.ERROR)
 
-logger.remove()
-logger.add("src/agents/sous_chef_agent.log", rotation="500 MB", level="DEBUG")
+# logger.remove()
+# logger.add("src/agents/sous_chef_agent.log", rotation="500 MB", level="DEBUG")
 
-if os.path.exists("src/agents/sous_chef_agent.log"):
-    with open("src/agents/sous_chef_agent.log", "w") as f:
-        f.truncate(0)
+# if os.path.exists("src/agents/sous_chef_agent.log"):
+#     with open("src/agents/sous_chef_agent.log", "w") as f:
+#         f.truncate(0)
 
 load_dotenv(dotenv_path=here(".env"))
 api_key = os.environ.get("GEMINI_API_KEY")
