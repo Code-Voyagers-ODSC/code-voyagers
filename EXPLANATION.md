@@ -12,7 +12,7 @@
    - **Cooking session** → `Sous Chef Agent`  
 
 3. **Call tools or APIs as needed**  
-   - Vision detection → Gemini Vision API  
+   - Vision detection → Gemini Flash API  
    - Recipe search → DuckDuckGo Tool  
    - Cooking mode → Timer Tool and step formatter  
 
@@ -52,18 +52,12 @@
 
 ## 4. Observability & Testing
 
-- All agent interactions and tool calls are logged (print + optional file logging).  
-- Errors are handled with retry logic where appropriate (e.g., image parsing or failed searches).  
-- `TEST.sh` or `test_requests.py` covers core scenarios:
-  - Ingredient detection from image  
-  - Smart search via ingredients  
-  - Starting and advancing a cooking session  
+ 
 
 ---
 
 ## 5. Known Limitations
 
 - **No persistent memory yet** — all session data is cleared on restart.  
-- **Ambiguous input handling** — vague phrases like “something tasty” may yield mixed results.  
 - **Vision edge cases** — cluttered images or poor lighting may reduce detection accuracy.  
 - **API latency** — long-running calls to Gemini or web search may slow down response time during peak usage.
