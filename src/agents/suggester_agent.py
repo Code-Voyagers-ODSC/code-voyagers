@@ -72,6 +72,7 @@ recipe_agent = LlmAgent(
     instruction=(
         "You are a cooking assistant. From the search results, select the 3-4 best recipes that match the requested ingredients. "
         "Be flexible - if a recipe contains most of the ingredients or similar ingredients, include it.\n\n"
+        f"{personalization_context}\n\n"
         "IMPORTANT:\n"
         "• Even if the search results don't perfectly match all ingredients, extract what you can.\n"
         "• For example, if searching for 'chicken pasta garlic' and you find 'garlic chicken' recipes, adapt them.\n"
