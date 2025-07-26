@@ -306,15 +306,15 @@ const RecipeSearch = () => {
     return (
       <div className="min-h-screen bg-gradient-subtle">
         {/* Header */}
-        <header className="relative z-10 p-6">
+        <header className="relative z-10 p-6 bg-white/95 backdrop-blur-sm border-b border-border/20 shadow-soft">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
               <img 
                 src="/lovable-uploads/51bd0746-cc07-45bf-844f-aaf5ede5c0b8.png" 
                 alt="Sous Chef Logo" 
-                className="h-8 w-8 brightness-0 invert"
+                className="h-8 w-8"
               />
-              <h1 className="font-playfair text-2xl font-bold text-white">
+              <h1 className="font-playfair text-2xl font-bold text-foreground">
                 Super Spoon
               </h1>
             </div>
