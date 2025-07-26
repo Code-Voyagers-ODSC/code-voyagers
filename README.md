@@ -184,7 +184,7 @@ CODE-VOYAGERS/
 * User accounts and saved recipes
 * Shopping list generation
 * Nutritional information
-* Voice control for hands-free cooking
+* Voice enabled step-by-step cooking guidance
 * Recipe rating and feedback
 * Multi-language support
 
