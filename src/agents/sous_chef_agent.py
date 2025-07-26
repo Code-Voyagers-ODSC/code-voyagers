@@ -1,13 +1,9 @@
-# agents/sous_chef_agent.py
+# agents/sous_chef_agent.py - Updated to support dynamic recipes
 
 import warnings
 import logging
 import os
-
 import sys
-import uuid
-import json
-from typing import Dict, List
 import google.generativeai as genai
 from dotenv import load_dotenv
 from pyprojroot.here import here
@@ -16,29 +12,27 @@ from google.adk.tools import ToolContext
 from google.adk.tools.base_tool import BaseTool
 from google.adk.runners import Runner
 from google.adk.sessions import InMemorySessionService
-from google.adk.memory import InMemoryMemoryService
 from google.genai.types import Content, Part
 import asyncio
 from loguru import logger
 import time
+from typing import Dict, Optional
 
 # Add project root to path for imports
 project_root = here()
 sys.path.insert(0, str(project_root))
 
-from tools.timer_tool import parse_timer_duration, timer_tool, set_custom_timer, web_timer_tool, check_timer_completion
+warnings.filterwarnings("ignore")
+logging.getLogger("google").setLevel(logging.ERROR)
+logging.getLogger("google.adk").setLevel(logging.ERROR)
+logging.getLogger("google.generativeai").setLevel(logging.ERROR)
 
-# warnings.filterwarnings("ignore")
-# logging.getLogger("google").setLevel(logging.ERROR)
-# logging.getLogger("google.adk").setLevel(logging.ERROR)
-# logging.getLogger("google.generativeai").setLevel(logging.ERROR)
+logger.remove()
+logger.add("src/sous_chef_agent/sous_chef_agent.log", rotation="500 MB", level="DEBUG")
 
-# logger.remove()
-# logger.add("src/agents/sous_chef_agent.log", rotation="500 MB", level="DEBUG")
-
-# if os.path.exists("src/agents/sous_chef_agent.log"):
-#     with open("src/agents/sous_chef_agent.log", "w") as f:
-#         f.truncate(0)
+if os.path.exists("src/sous_chef_agent/sous_chef_agent.log"):
+    with open("src/sous_chef_agent/sous_chef_agent.log", "w") as f:
+        f.truncate(0)
 
 load_dotenv(dotenv_path=here(".env"))
 api_key = os.environ.get("GEMINI_API_KEY")
@@ -46,21 +40,10 @@ if not api_key:
     raise ValueError("GEMINI_API_KEY environment variable not set.")
 genai.configure(api_key=api_key)
 
-MODEL = "gemini-1.5-flash" # TODO: Update to 2.5
+MODEL = "gemini-1.5-flash"
 COMPLETION_PHRASE = "The recipe is finished."
-APP_NAME = "cooking_assistant"
+APP_NAME = "sous_chef_test_app"
 USER_ID = "test_user"
-
-# Default recipe for CLI testing
-DEFAULT_RECIPE = {
-    "name": "Tiktok Baked Feta Pasta",
-    "steps": {
-        "1": "Preheat the oven to 400°F (200°C).",
-        "2": "In a baking dish, toss cherry tomatoes with olive oil.",
-        "3": "Place a block of feta in the center of the dish and drizzle it with more olive oil.",
-        "4": "Put the dish in the oven. When ready to time the baking, say 'next' again to start a 20-second timer.",
-    },
-}
 
 
 def run_countdown_timer(time_in_seconds: int) -> dict:
@@ -84,7 +67,7 @@ def run_countdown_timer(time_in_seconds: int) -> dict:
     except Exception as e:
         logger.error(f"❌ Unexpected error in countdown: {e}")
         return {"status": "error", "message": f"Countdown error: {str(e)}"}
-      
+
 
 def exit_loop(tool_context: ToolContext):
     """Recipe completion handler"""
@@ -94,26 +77,18 @@ def exit_loop(tool_context: ToolContext):
     return {"status": "success", "message": "Recipe completed, exiting loop."}
 
 
-def wait_for_user_confirmation(tool_context: ToolContext) -> dict:
-    return {"status": "waiting", "message": "Please type 'next' to continue."}
-
-
 class RecipeManagerTool(BaseTool):
-    def __init__(self):
-        super().__init__(
-            name="recipe_manager", description="Manages recipe steps"
-        )
+    """Recipe progress manager"""
+
+    def __init__(self, steps: dict):
+        super().__init__(name="recipe_manager", description="Manages recipe steps")
+        self._steps = steps
+        self._step_keys = sorted(steps.keys())
 
     def get_current_step(self, tool_context: ToolContext) -> dict:
-        recipe_steps = tool_context.state.get("recipe_steps", {})
         current_index = tool_context.state.get("step_index", 0)
 
-        if not recipe_steps:
-            return {"step": "No recipe loaded", "step_number": 0, "is_complete": True}
-
-        step_keys = sorted([int(k) for k in recipe_steps.keys()])
-
-        if current_index >= len(step_keys):
+        if current_index >= len(self._step_keys):
             tool_context.state["recipe_completed"] = True
             return {
                 "step": COMPLETION_PHRASE,
@@ -121,9 +96,8 @@ class RecipeManagerTool(BaseTool):
                 "is_complete": True,
             }
 
-        current_step_key = str(step_keys[current_index])
-        current_step_text = recipe_steps[current_step_key]
-
+        current_step_key = self._step_keys[current_index]
+        current_step_text = self._steps[current_step_key]
         tool_context.state["current_step_text"] = current_step_text
         tool_context.state["current_step_number"] = current_index + 1
 
@@ -135,253 +109,228 @@ class RecipeManagerTool(BaseTool):
 
     def advance_step(self, tool_context: ToolContext) -> dict:
         current_index = tool_context.state.get("step_index", 0)
-        recipe_steps = tool_context.state.get("recipe_steps", {})
-        step_keys = sorted([int(k) for k in recipe_steps.keys()])
-
         new_index = current_index + 1
         tool_context.state["step_index"] = new_index
 
-        if new_index >= len(step_keys):
+        if new_index >= len(self._step_keys):
             tool_context.state["recipe_completed"] = True
 
-        return {"status": "success", "message": f"Advanced to step {new_index + 1}"}
+        return {"status": "success", "message": f"Advanced to step {new_index + 1}."}
 
 
-# Unified recipe tool and agent
-recipe_tool = RecipeManagerTool()
+def wait_for_user_confirmation(tool_context: ToolContext) -> dict:
+    return {"status": "waiting", "message": "Please type 'next' to continue."}
 
-sous_chef_agent = Agent(
-    name="SousChefAgent",
-    model=MODEL,
-    tools=[
-        recipe_tool.get_current_step,
-        recipe_tool.advance_step,
-        parse_timer_duration,
-        web_timer_tool,
-        set_custom_timer,
-        wait_for_user_confirmation,
-        exit_loop,
-    ],
-    instruction="""You are a friendly Sous Chef helping users cook step by step.
+
+def parse_timer_duration(tool_context: ToolContext, text: str) -> dict:
+    """Parse timer duration from text"""
+    import re
+    
+    # Look for various timer patterns
+    patterns = [
+        (r'(\d+)\s*minutes?', 60),  # minutes
+        (r'(\d+)\s*mins?', 60),      # abbreviated minutes
+        (r'(\d+)\s*seconds?', 1),    # seconds
+        (r'(\d+)\s*secs?', 1),       # abbreviated seconds
+        (r'(\d+)\s*hours?', 3600),  # hours
+        (r'(\d+)\s*hrs?', 3600),    # abbreviated hours
+    ]
+    
+    total_seconds = 0
+    for pattern, multiplier in patterns:
+        match = re.search(pattern, text, re.IGNORECASE)
+        if match:
+            total_seconds += int(match.group(1)) * multiplier
+    
+    if total_seconds > 0:
+        return {"duration": total_seconds, "status": "success"}
+    return {"duration": 0, "status": "not_found"}
+
+
+def timer_tool(tool_context: ToolContext, time_in_seconds: int) -> dict:
+    """Start a timer"""
+    return run_countdown_timer(time_in_seconds)
+
+
+def set_custom_timer(tool_context: ToolContext, duration: int) -> dict:
+    """Set a custom timer duration"""
+    tool_context.state["custom_timer_duration"] = duration
+    return {"status": "custom_timer_set", "duration": duration}
+
+
+def create_sous_chef_agent(recipe_dict: Dict[str, any]) -> tuple[Agent, RecipeManagerTool]:
+    """
+    Create a sous chef agent with a specific recipe.
+    
+    Args:
+        recipe_dict: Dictionary with 'name' and 'steps' keys
+        
+    Returns:
+        Tuple of (agent, recipe_tool)
+    """
+    recipe_tool = RecipeManagerTool(recipe_dict["steps"])
+    
+    sous_chef_agent = Agent(
+        name="SousChefAgent",
+        model=MODEL,
+        tools=[
+            recipe_tool.get_current_step,
+            recipe_tool.advance_step,
+            parse_timer_duration,
+            timer_tool,
+            set_custom_timer,
+            wait_for_user_confirmation,
+            exit_loop,
+        ],
+        instruction=f"""You are a friendly Sous Chef helping users cook {recipe_dict["name"]} step by step.
 
 WORKFLOW:
 1. First interaction: Greet, get_current_step, present step, wait_for_user_confirmation
 2. User says 'next': advance_step, get_current_step, present step, handle timers if needed
-3. Timer handling: parse_timer_duration → web_timer_tool
-4. Completion: get_current_step returns completion phrase → exit_loop
+3. Timer workflow: parse_timer_duration → offer timer → user "start" → timer_tool
+4. Completion: If get_current_step returns completion phrase, call exit_loop
 
-TIMER WORKFLOW:
-- Parse timer duration with parse_timer_duration
-- Say: "I'll start a [duration] timer when ready. Type 'start' to begin, or different duration."
-- User "start": Call web_timer_tool immediately
+TIMER RULES:
+- Use parse_timer_duration to extract duration from the current step
+- Say: "I'll start a [duration] timer when ready. Type 'start' to begin."
+- User "start": Call timer_tool immediately
 - Custom duration: Call set_custom_timer, wait for "start"
 
-Keep responses encouraging and concise.""",
-)
-
-
-class CookingAgentHandler:
-    def __init__(self, app_name: str = APP_NAME, memory_service=None, session_service=None):
-        self.app_name = app_name
-        self.session_service = session_service or InMemorySessionService()
-        self.memory_service = memory_service or InMemoryMemoryService()
-        self.active_runners: Dict[str, Runner] = {}
-
-    async def start_cooking_session(self, recipe_data: dict) -> dict:
-        """Start a new cooking session with recipe data"""
-        session_id = str(uuid.uuid4())
-        
-        initial_state = {
-            "step_index": 0,
-            "recipe_completed": False,
-            "recipe_name": recipe_data["name"],
-            "recipe_steps": recipe_data["steps"],
-            "timer_active": False,
-        }
-
-        session = await self.session_service.create_session(
-            app_name=self.app_name,
-            user_id="web_user",
-            session_id=session_id,
-            state=initial_state,
-        )
-
-        runner = Runner(
-            agent=sous_chef_agent,
-            session_service=self.session_service,
-            app_name=self.app_name,
-        )
-        self.active_runners[session_id] = runner
-
-        # Initial greeting
-        greeting_content = Content(
-            parts=[Part(text="Hello, let's start cooking!")], role="user"
-        )
-
-        response_text = ""
-        waiting_for_user = False
-
-        async for event in runner.run_async(
-            user_id="web_user", session_id=session_id, new_message=greeting_content
-        ):
-            if event.content and event.content.parts:
-                for part in event.content.parts:
-                    if part.text:
-                        response_text += part.text
-                    elif (
-                        part.function_call
-                        and part.function_call.name == "wait_for_user_confirmation"
-                    ):
-                        waiting_for_user = True
-
-            if event.is_final_response():
-                break
-
-        updated_session = await self.session_service.get_session(
-            app_name=self.app_name, user_id="web_user", session_id=session_id
-        )
-
-        return {
-            "session_id": session_id,
-            "message": response_text,
-            "waiting_for_user": waiting_for_user,
-            "recipe_completed": updated_session.state.get("recipe_completed", False),
-            "session_state": updated_session.state,
-        }
-
-    async def handle_interaction(self, session_id: str, message: str) -> dict:
-        """Handle user interaction with existing session"""
-        runner = self.active_runners.get(session_id)
-        if not runner:
-            raise ValueError("Cooking session not found")
-
-        # Check timer completion
-        session = await self.session_service.get_session(
-            app_name=self.app_name, user_id="web_user", session_id=session_id
-        )
-
-        timer_completion_msg = check_timer_completion(session.state)
-
-        user_content = Content(parts=[Part(text=message)], role="user")
-
-        response_text = ""
-        waiting_for_user = False
-
-        async for event in runner.run_async(
-            user_id="web_user", session_id=session_id, new_message=user_content
-        ):
-            if event.content and event.content.parts:
-                for part in event.content.parts:
-                    if part.text:
-                        response_text += part.text
-                    elif (
-                        part.function_call
-                        and part.function_call.name == "wait_for_user_confirmation"
-                    ):
-                        waiting_for_user = True
-
-            if event.is_final_response():
-                break
-
-        updated_session = await self.session_service.get_session(
-            app_name=self.app_name, user_id="web_user", session_id=session_id
-        )
-
-        recipe_completed = updated_session.state.get("recipe_completed", False)
-
-        # Prepend timer completion message
-        if timer_completion_msg:
-            response_text = timer_completion_msg + "\n\n" + response_text
-
-        # Cleanup completed sessions
-        if recipe_completed and session_id in self.active_runners:
-            await self.memory_service.add_session_to_memory(updated_session)
-            del self.active_runners[session_id]
-
-        return {
-            "session_id": session_id,
-            "message": response_text,
-            "waiting_for_user": waiting_for_user,
-            "recipe_completed": recipe_completed,
-            "session_state": updated_session.state,
-        }
-
-    async def get_session_status(self, session_id: str) -> dict:
-        """Get current session status"""
-        session = await self.session_service.get_session(
-            app_name=self.app_name, user_id="web_user", session_id=session_id
-        )
-
-        if not session:
-            raise ValueError("Session not found")
-
-        return {
-            "session_id": session_id,
-            "recipe_name": session.state.get("recipe_name"),
-            "current_step": session.state.get("current_step_number", 0),
-            "recipe_completed": session.state.get("recipe_completed", False),
-            "session_state": session.state,
-        }
-
-    async def end_session(self, session_id: str) -> dict:
-        """End a cooking session"""
-        if session_id in self.active_runners:
-            del self.active_runners[session_id]
-
-        return {"message": "Cooking session ended", "session_id": session_id}
-
-
-# CLI main function
-async def main():
-    """CLI test function"""
-    handler = CookingAgentHandler("sous_chef_test_app")
+Keep responses concise and helpful. Be encouraging and friendly!""",
+    )
     
-    print("🍳 Starting CLI Sous Chef Test")
-    print("=" * 60)
+    return sous_chef_agent, recipe_tool
+
+
+async def run_sous_chef_session(recipe_dict: Dict[str, any], session_id: Optional[str] = None):
+    """
+    Run a complete sous chef cooking session with the given recipe.
     
-    # Start cooking with default recipe
-    result = await handler.start_cooking_session(DEFAULT_RECIPE)
-    session_id = result["session_id"]
+    Args:
+        recipe_dict: Dictionary with 'name' and 'steps' keys
+        session_id: Optional session ID for tracking
+    """
+    # Create agent with the recipe
+    sous_chef_agent, recipe_tool = create_sous_chef_agent(recipe_dict)
     
-    print(f"\n🍴 Sous Chef: {result['message']}")
+    session_service = InMemorySessionService()
+    session = await session_service.create_session(
+        app_name=APP_NAME,
+        user_id=USER_ID,
+        state={"step_index": 0, "recipe_completed": False},
+        session_id=session_id
+    )
+
+    runner = Runner(
+        agent=sous_chef_agent, 
+        session_service=session_service, 
+        app_name=APP_NAME
+    )
     
+    current_query_content = Content(
+        parts=[Part(text="Hello, let's start cooking!")], 
+        role="user"
+    )
+
     iteration_count = 0
-    max_iterations = 20
+    max_iterations = 50  # Increased for longer recipes
 
     while iteration_count < max_iterations:
         iteration_count += 1
-        
+        final_response_text = ""
+        waiting_for_user = False
+        timer_called = False
+        timer_duration = 0
+
+        async for event in runner.run_async(
+            user_id=USER_ID, 
+            session_id=session.id, 
+            new_message=current_query_content
+        ):
+            if event.content and event.content.parts:
+                for part in event.content.parts:
+                    if part.text:
+                        final_response_text += part.text
+                    elif part.function_call:
+                        if part.function_call.name in ["wait_for_user_confirmation"]:
+                            waiting_for_user = True
+                        elif part.function_call.name == "timer_tool":
+                            timer_called = True
+                            if "time_in_seconds" in part.function_call.args:
+                                timer_duration = part.function_call.args["time_in_seconds"]
+
+            if event.is_final_response():
+                print(f"\n🍴 Sous Chef: {final_response_text}")
+
+                if timer_called and timer_duration > 0:
+                    # Timer is handled in the timer_tool function
+                    print("\n⏭️ Timer complete! Type 'next' to continue.")
+
+                if (
+                    COMPLETION_PHRASE in final_response_text
+                    or "Congratulations" in final_response_text
+                ):
+                    print("🎉 Recipe completed! Enjoy your meal!")
+                    return
+                break
+
         user_input = input(
             "\n⏭️ Type your response (or 'quit' to exit): "
-            if result.get("waiting_for_user")
+            if waiting_for_user
             else "\n💬 Type your message (or 'quit' to exit): "
         )
-        
         if user_input.lower() == "quit":
             break
-            
-        try:
-            result = await handler.handle_interaction(session_id, user_input)
-            
-            # Handle CLI timer
-            if "timer_tool" in result.get("message", ""):
-                # Extract duration and run countdown
-                import re
-                duration_match = re.search(r'(\d+).*?second', result["message"])
-                if duration_match:
-                    duration = int(duration_match.group(1))
-                    run_countdown_timer(duration)
-                    print("\n⏭️ Timer complete! Type 'next' to continue.")
-            
-            print(f"\n🍴 Sous Chef: {result['message']}")
-            
-            if result.get("recipe_completed"):
-                print("🎉 Recipe completed! Enjoy your meal!")
-                break
-                
-        except Exception as e:
-            print(f"❌ Error: {e}")
-            break
+        current_query_content = Content(parts=[Part(text=user_input)], role="user")
+
+
+# For testing with the integrated system
+async def test_with_suggester():
+    """Test function that gets a recipe from suggester and runs sous chef"""
+    from agents.suggester_agent import smart_recipe_search_handler, extract_sous_chef_dict
+    
+    # Get a recipe from the suggester
+    ingredients = ["chicken", "pasta", "garlic"]
+    print(f"🔍 Searching for recipes with: {', '.join(ingredients)}")
+    
+    recipe_response = await smart_recipe_search_handler(ingredients)
+    
+    if not recipe_response.recipes:
+        print("No recipes found!")
+        return
+    
+    # Use the first recipe
+    recipe = extract_sous_chef_dict(recipe_response, 0)
+    print(f"\n🍳 Selected recipe: {recipe['name']}")
+    print(f"📝 Number of steps: {len(recipe['steps'])}")
+    print("=" * 60)
+    
+    # Run the sous chef session
+    await run_sous_chef_session(recipe)
+
+
+# Example of how to run with a custom recipe
+async def main():
+    # Option 1: Test with a hardcoded recipe
+    test_recipe = {
+        "name": "Quick Garlic Pasta",
+        "steps": {
+            "1": "Fill a large pot with water and bring to a boil",
+            "2": "Add pasta to boiling water and cook for 8-10 minutes",
+            "3": "While pasta cooks, mince 3 cloves of garlic",
+            "4": "Heat olive oil in a pan over medium heat",
+            "5": "Add garlic to the pan and cook for 30 seconds until fragrant",
+            "6": "Drain pasta and add to the garlic oil",
+            "7": "Toss everything together and serve hot"
+        }
+    }
+    
+    # Option 2: Test with suggester integration
+    # Uncomment the line below to test with real recipes from suggester
+    # await test_with_suggester()
+    
+    # Run with the test recipe
+    await run_sous_chef_session(test_recipe)
 
 
 if __name__ == "__main__":

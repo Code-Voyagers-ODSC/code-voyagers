@@ -6,6 +6,7 @@ import re
 from typing import List, Dict
 from dotenv import load_dotenv
 from pyprojroot.here import here
+from pydantic import BaseModel, Field
 
 # Add project root to Python path using pyprojroot
 project_root = here()
@@ -20,7 +21,51 @@ from src.tools.search_tool import web_search_recipes_tool
 
 load_dotenv(here(".env"))
 
-# Define the Agent
+# Define Pydantic models for structured output
+class RecipeSummary(BaseModel):
+    title: str = Field(description="The recipe title")
+    link: str = Field(description="URL link to the original recipe")
+    description: str = Field(description="Brief description of the recipe")
+    estimated_time: str = Field(description="Total estimated cooking time")
+    difficulty: str = Field(description="Difficulty level (Easy, Medium, Hard)")
+    cuisine_type: str = Field(description="Type of cuisine")
+    serves: str = Field(description="Number of servings")
+    food_safety_summary: str = Field(description="Brief food safety notes")
+
+class FoodSafetyDetails(BaseModel):
+    temperature_guidelines: str = Field(description="Safe cooking temperatures")
+    storage_instructions: str = Field(description="How to store the dish")
+    handling_tips: str = Field(description="Safe food handling tips")
+
+class RecipeDetails(BaseModel):
+    ingredients: List[str] = Field(description="List of ingredients needed")
+    equipment_needed: List[str] = Field(description="Kitchen equipment required")
+    prep_time: str = Field(description="Preparation time")
+    cook_time: str = Field(description="Cooking time")
+    method_overview: str = Field(description="Brief overview of cooking method")
+    key_techniques: List[str] = Field(description="Key cooking techniques used")
+    food_safety_details: FoodSafetyDetails
+    dietary_info: List[str] = Field(description="Dietary information (vegetarian, gluten-free, etc.)")
+    substitutions: List[str] = Field(description="Possible ingredient substitutions")
+    chef_tips: List[str] = Field(description="Professional cooking tips")
+    serving_suggestions: List[str] = Field(description="How to serve the dish")
+    make_ahead_notes: str = Field(description="Notes on preparing ahead of time")
+    troubleshooting: List[str] = Field(description="Common problems and solutions")
+
+class SousChefFormat(BaseModel):
+    name: str = Field(description="Recipe name for the sous chef")
+    steps: Dict[str, str] = Field(description="Numbered cooking steps as string keys with step descriptions")
+
+class Recipe(BaseModel):
+    id: str = Field(description="Unique recipe identifier")
+    summary: RecipeSummary
+    details: RecipeDetails
+    sous_chef_format: SousChefFormat
+
+class RecipeResponse(BaseModel):
+    recipes: List[Recipe] = Field(description="List of 3-4 best matching recipes")
+
+# Define the Agent WITHOUT structured output (since we're using tools)
 recipe_agent = LlmAgent(
     name="recipe_suggester",
     model="gemini-2.0-flash",
@@ -86,9 +131,10 @@ recipe_agent = LlmAgent(
     ),
     description="Suggest cooking recipes based on input ingredients",
     tools=[web_search_recipes_tool]
+    # Note: No output_schema because we're using tools
 )
 
-async def smart_recipe_search_handler(ingredients: List[str]) -> Dict:
+async def smart_recipe_search_handler(ingredients: List[str]) -> RecipeResponse:
     """
     Search for recipes and return structured response.
     
@@ -96,7 +142,7 @@ async def smart_recipe_search_handler(ingredients: List[str]) -> Dict:
         ingredients: List of ingredients to search for
         
     Returns:
-        Dictionary with 'recipes' key containing list of recipe dictionaries
+        RecipeResponse object with structured recipe data
     """
     # 1) Start an in‑memory session
     session_svc = InMemorySessionService()
@@ -117,7 +163,7 @@ async def smart_recipe_search_handler(ingredients: List[str]) -> Dict:
     payload = json.dumps({"ingredients": ingredients})
     user_msg = types.Content(role="user", parts=[types.Part(text=payload)])
 
-    # 4) Run the agent and parse the JSON response
+    # 4) Run the agent and parse the JSON response manually
     raw_response = None
     async for evt in runner.run_async(
         user_id="anonymous",
@@ -129,18 +175,25 @@ async def smart_recipe_search_handler(ingredients: List[str]) -> Dict:
             break
 
     if not raw_response:
-        return {"recipes": []}
+        return RecipeResponse(recipes=[])
 
-    # 5) Clean and parse the JSON response
+    # 5) Clean and parse the JSON response, then convert to Pydantic
     try:
         cleaned = clean_json_response(raw_response)
-        recipes = json.loads(cleaned)
-        return {"recipes": recipes}
+        recipes_dict = json.loads(cleaned)
+        
+        # Convert dictionary to Pydantic models
+        recipes = []
+        for recipe_dict in recipes_dict:
+            recipe = Recipe(**recipe_dict)
+            recipes.append(recipe)
+            
+        return RecipeResponse(recipes=recipes)
         
     except Exception as e:
         print(f"Error parsing response: {e}")
         print(f"Raw response preview: {raw_response[:500] if raw_response else 'None'}")
-        return {"recipes": []}
+        return RecipeResponse(recipes=[])
 
 def clean_json_response(txt: str) -> str:
     """Clean the JSON response from the agent"""
@@ -156,30 +209,85 @@ def clean_json_response(txt: str) -> str:
     # remove trailing commas
     return re.sub(r',\s*([\]}])', r'\1', arr)
 
-def extract_sous_chef_format(recipe_response: Dict, recipe_index: int = 0) -> Dict:
+def extract_sous_chef_format(recipe_response: RecipeResponse, recipe_index: int = 0) -> SousChefFormat:
     """
-    Extract just the sous_chef_format from a recipe response.
+    Extract just the sous_chef_format from a structured recipe response.
     
     Args:
-        recipe_response: The response from the agent
+        recipe_response: The structured response from the agent
         recipe_index: Which recipe to extract (default: first recipe)
         
     Returns:
-        Dictionary with 'name' and 'steps' keys or None if not found
+        SousChefFormat object ready for the sous chef agent
     """
-    recipes = recipe_response.get("recipes", [])
-    if recipes and len(recipes) > recipe_index:
-        return recipes[recipe_index].get("sous_chef_format")
+    if recipe_response.recipes and len(recipe_response.recipes) > recipe_index:
+        return recipe_response.recipes[recipe_index].sous_chef_format
     return None
 
-# Alias for backward compatibility
-extract_sous_chef_dict = extract_sous_chef_format
+def extract_sous_chef_dict(recipe_response: RecipeResponse, recipe_index: int = 0) -> dict:
+    """
+    Extract sous chef format as a plain dictionary (for compatibility with existing code).
+    
+    Args:
+        recipe_response: The structured response from the agent
+        recipe_index: Which recipe to extract (default: first recipe)
+        
+    Returns:
+        Dictionary with 'name' and 'steps' keys
+    """
+    sous_chef_format = extract_sous_chef_format(recipe_response, recipe_index)
+    if sous_chef_format:
+        return {
+            "name": sous_chef_format.name,
+            "steps": {k: v for k, v in sous_chef_format.steps.items()}
+        }
+    return None
+
+# Example usage:
+async def example_usage():
+    # Get structured response
+    response = await smart_recipe_search_handler(["chicken", "pasta", "garlic"])
+    
+    # Access structured data directly
+    print(f"Found {len(response.recipes)} recipes")
+    for i, recipe in enumerate(response.recipes):
+        print(f"Recipe {i+1}: {recipe.summary.title}")
+        print(f"Difficulty: {recipe.summary.difficulty}")
+        print(f"Estimated time: {recipe.summary.estimated_time}")
+    
+    # Extract for sous chef agent (as dictionary)
+    sous_chef_recipe = extract_sous_chef_dict(response, recipe_index=0)
+    if sous_chef_recipe:
+        print(f"Sous chef recipe: {sous_chef_recipe['name']}")
+        print(f"Number of steps: {len(sous_chef_recipe['steps'])}")
+    
+    return response
+
+# For backward compatibility, also provide a function that returns the old format
+async def smart_recipe_search_handler_dict(ingredients: List[str]) -> dict:
+    """
+    Legacy function that returns dictionary format for backward compatibility.
+    """
+    structured_response = await smart_recipe_search_handler(ingredients)
+    
+    # Convert to dictionary format
+    recipes_dict = []
+    for recipe in structured_response.recipes:
+        recipe_dict = {
+            "id": recipe.id,
+            "summary": recipe.summary.model_dump(),
+            "details": recipe.details.model_dump(),
+            "sous_chef_format": recipe.sous_chef_format.model_dump()
+        }
+        recipes_dict.append(recipe_dict)
+    
+    return {"recipes": recipes_dict}
 
 async def main():
     """
-    Test function to demonstrate the recipe suggester.
+    Test function to demonstrate the structured output recipe suggester.
     """
-    print("🍳 Testing Recipe Suggester Agent")
+    print("🍳 Testing Recipe Suggester Agent with Structured Output")
     print("=" * 60)
     
     # Test ingredients
@@ -194,36 +302,37 @@ async def main():
         print("-" * 40)
         
         try:
-            # Get response
+            # Get structured response
             response = await smart_recipe_search_handler(ingredients)
-            recipes = response.get("recipes", [])
             
-            if recipes:
-                print(f"✅ Found {len(recipes)} recipes!")
+            if response.recipes:
+                print(f"✅ Found {len(response.recipes)} recipes!")
                 
                 # Display each recipe summary
-                for j, recipe in enumerate(recipes, 1):
-                    summary = recipe.get("summary", {})
-                    print(f"\n🍽️  Recipe {j}: {summary.get('title', 'Unknown')}")
-                    print(f"   Difficulty: {summary.get('difficulty', 'Unknown')}")
-                    print(f"   Time: {summary.get('estimated_time', 'Unknown')}")
-                    print(f"   Cuisine: {summary.get('cuisine_type', 'Unknown')}")
-                    print(f"   Serves: {summary.get('serves', 'Unknown')}")
+                for j, recipe in enumerate(response.recipes, 1):
+                    print(f"\n🍽️  Recipe {j}: {recipe.summary.title}")
+                    print(f"   Difficulty: {recipe.summary.difficulty}")
+                    print(f"   Time: {recipe.summary.estimated_time}")
+                    print(f"   Cuisine: {recipe.summary.cuisine_type}")
+                    print(f"   Serves: {recipe.summary.serves}")
                     
                     # Show sous chef format
-                    sous_chef = recipe.get("sous_chef_format", {})
-                    steps = sous_chef.get("steps", {})
-                    print(f"   📝 Sous Chef Steps ({len(steps)} steps):")
-                    for step_num, step_desc in list(steps.items())[:3]:  # Show first 3 steps
+                    sous_chef = recipe.sous_chef_format
+                    print(f"   📝 Sous Chef Steps ({len(sous_chef.steps)} steps):")
+                    for step_num, step_desc in list(sous_chef.steps.items())[:3]:  # Show first 3 steps
                         print(f"      {step_num}. {step_desc[:80]}{'...' if len(step_desc) > 80 else ''}")
-                    if len(steps) > 3:
-                        print(f"      ... and {len(steps) - 3} more steps")
+                    if len(sous_chef.steps) > 3:
+                        print(f"      ... and {len(sous_chef.steps) - 3} more steps")
                 
-                # Test extraction function
-                print("\n🔧 Testing extraction function:")
+                # Test extraction functions
+                print("\n🔧 Testing extraction functions:")
                 sous_chef_format = extract_sous_chef_format(response, 0)
                 if sous_chef_format:
-                    print(f"   ✅ extract_sous_chef_format(): {sous_chef_format.get('name', 'Unknown')} ({len(sous_chef_format.get('steps', {}))} steps)")
+                    print(f"   ✅ extract_sous_chef_format(): {sous_chef_format.name}")
+                
+                sous_chef_dict = extract_sous_chef_dict(response, 0)
+                if sous_chef_dict:
+                    print(f"   ✅ extract_sous_chef_dict(): {sous_chef_dict['name']} ({len(sous_chef_dict['steps'])} steps)")
                 
             else:
                 print("❌ No recipes found")
