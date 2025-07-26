@@ -36,7 +36,7 @@ Below, sketch (ASCII, hand-drawn JPEG/PNG pasted in, or ASCII art) the high-leve
    - Search: DuckDuckGo for web recipe search
 
 5. **Observability**  
-   - Logging of each reasoning step  
-   Loguru library used in sous-chef-agent.py and timer-tool.py
+   - Logging of each reasoning step
+   - Loguru library used in sous-chef-agent.py and timer-tool.py
    - Error handling / retries
 
