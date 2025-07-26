@@ -1,0 +1,31 @@
+# requirements.txt for backend
+
+# FastAPI and server
+fastapi
+uvicorn
+
+# Core dependencies
+pydantic
+python-dotenv
+
+# Google ADK and Gemini
+google-genai
+google-adk
+google-generativeai
+
+# Search functionality
+duckduckgo-search
+
+# Utilities
+pyprojroot
+loguru
+
+# For CORS and async file uploads
+python-multipart
+aiofiles
+
+# Optional: faster JSON serialization
+orjson
+
+# Image processing (provides the PIL namespace)
+pillow

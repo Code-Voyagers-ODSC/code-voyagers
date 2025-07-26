@@ -1,42 +1,157 @@
-# Agentic AI App Hackathon Template
+# Super Spoon - Your Intelligent Sous Chef Agent
 
-Welcome! This repository is your starting point for the **Agentic AI App Hackathon**. It includes:
+An AI-powered recipe assistant that finds recipes based on your ingredients and provides step-by-step cooking guidance. Features ingredient detection from photos using Google Gemini Vision and intelligent recipe recommendations.
 
-- A consistent folder structure  
-- An environment spec (`environment.yml` or `Dockerfile`)  
-- Documentation placeholders to explain your design and demo
+## ✨ Features
 
-## 📋 Submission Checklist
+- 🔍 **Smart Recipe Search**: Uses Google's Gemini AI to find recipes matching your ingredients
+- 🖼️ **Ingredient Vision Agent**: Upload food photos to auto-detect ingredients via Google Gemini Vision model
+- 👨🍳 **Interactive Cooking Mode**: Step-by-step guidance through each recipe
+- ⏰ **Built-in Timers**: Automatic timer detection and countdown for cooking steps
+- 🛡️ **Food Safety Tips**: Includes temperature guidelines and safe handling practices
+- 📱 **Responsive Design**: Works on desktop and mobile devices
 
-- [ ] All code in `src/` runs without errors  
-- [ ] `ARCHITECTURE.md` contains a clear diagram sketch and explanation  
-- [ ] `EXPLANATION.md` covers planning, tool use, memory, and limitations  
-- [ ] `DEMO.md` links to a 3–5 min video with timestamped highlights  
+## 🧑‍🍳 Using the Agent
 
+### Basic Recipe Search
+1. Open `http://localhost:8081` in your browser
+2. Enter ingredients manually or upload a food photo
+3. Click "Search Recipes" to get AI-powered suggestions
+4. Select a recipe to start interactive cooking mode
+5. Press the "Next" button to move to the next step
 
-## 🚀 Getting Started
+## 📋 Prerequisites
 
-1. **Clone / Fork** this template.  Very Important. Fork Name MUST be the same name as the teamn name
+- **Python**: 3.8 or higher
+- **Node.js**: 16.0 or higher
+- **uv**: Modern Python package manager (recommended) - [Install uv](https://docs.astral.sh/uv/getting-started/installation/)
+- **Google Gemini API Key** - Get one from [Google AI Studio](https://makersuite.google.com/app/apikey)
 
+## 🚀 Quick Start
 
-## 📂 Folder Layout
+### 1. Clone & Setup
 
-![Folder Layout Diagram](images/folder-githb.png)
+```bash
+git clone https://github.com/Code-Voyagers-ODSC/code-voyagers.git
+cd code-voyagers
+```
 
+### 2. Backend Setup
 
+#### Install Dependencies
 
-## 🏅 Judging Criteria
+**Option A: Using uv (Recommended)**
+```bash
+# Install uv package manager if needed
+curl -LsSf https://astral.sh/uv/install.sh | sh
 
-- **Technical Excellence **  
-  This criterion evaluates the robustness, functionality, and overall quality of the technical implementation. Judges will assess the code's efficiency, the absence of critical bugs, and the successful execution of the project's core features.
+# Install dependencies automatically
+uv sync
 
-- **Solution Architecture & Documentation **  
-  This focuses on the clarity, maintainability, and thoughtful design of the project's architecture. This includes assessing the organization and readability of the codebase, as well as the comprehensiveness and conciseness of documentation (e.g., GitHub README, inline comments) that enables others to understand and potentially reproduce or extend the solution.
+# Activate virtual environment
+source .venv/bin/activate  # macOS/Linux
+# or
+.venv\Scripts\activate     # Windows
+```
 
-- **Innovative Gemini Integration **  
-  This criterion specifically assesses how effectively and creatively the Google Gemini API has been incorporated into the solution. Judges will look for novel applications, efficient use of Gemini's capabilities, and the impact it has on the project's functionality or user experience. You are welcome to use additional Google products.
+**Option B: Using pip**
+```bash
+# Create virtual environment
+python -m venv venv
+source venv/bin/activate   # macOS/Linux
+# or
+venv\Scripts\activate      # Windows
 
-- **Societal Impact & Novelty **  
-  This evaluates the project's potential to address a meaningful problem, contribute positively to society, or offer a genuinely innovative and unique solution. Judges will consider the originality of the idea, its potential real‑world applicability, and its ability to solve a challenge in a new or impactful way.
+# Install dependencies
+pip install -r requirements.txt
+```
 
+#### Configure API Key
+```bash
+# Create .env file with your API key
+echo "GEMINI_API_KEY=your-api-key-here" > .env
+```
 
+### 3. Run the Agent
+
+#### Start Backend (Primary Method)
+```bash
+cd src
+python main.py
+```
+
+**Alternative (if main.py doesn't work directly):**
+```bash
+cd src
+uvicorn main:app --reload --port 8000
+```
+
+The backend will be available at `http://localhost:8000`
+
+#### Start Frontend
+```bash
+# In a new terminal
+cd frontend
+npm install
+npm run dev
+```
+
+The frontend will be available at `http://localhost:8081`
+
+## 📦 Dependencies
+
+### Core Backend Dependencies
+- **FastAPI** - Web framework for the API
+- **Google Generative AI** - Gemini models for recipe suggestions and vision
+- **Pillow** - Image processing for ingredient detection
+- **uvicorn** - ASGI server for running the API
+
+### Frontend Dependencies
+- **Next.js** - React framework for the UI
+- **React** - Frontend library
+- **TailwindCSS** - Styling
+
+## 🛠️ Project Structure
+
+```
+code-voyagers/
+├── src/
+│   ├── main.py                     # FastAPI app entry point (run this!)
+│   ├── agents/
+│   │   ├── suggester_agent.py      # Recipe AI agent
+│   │   ├── ingredient_vision_agent.py  # Photo ingredient detection
+│   │   └── sous_chef_agent.py      # Cooking guidance agent
+│   └── tools/
+│       ├── search_tool.py          # Recipe search functionality
+│       └── timer_tool.py           # Cooking timers
+├── frontend/                       # Next.js React app
+├── requirements.txt                # Python dependencies
+├── pyproject.toml                 # uv configuration
+└── .env                           # API keys (create this)
+```
+
+## 🔧 Troubleshooting
+
+**Backend won't start:**
+- Ensure Python 3.8+ is installed: `python --version`
+- Check virtual environment is activated (see `(.venv)` or `(venv)` in terminal)
+- Verify API key is set: `cat .env` (should show your Gemini API key)
+
+**"ModuleNotFoundError":**
+- Make sure you're in the activated virtual environment
+- Try: `pip install -r requirements.txt` (even if using uv)
+
+**Frontend issues:**
+- Confirm backend is running on port 8000
+- Check Node.js version: `node --version` (need 16+)
+- Try: `npm install --force` if dependency issues
+
+**API errors:**
+- Verify your Gemini API key is valid at [Google AI Studio](https://aistudio.google.com/app/apikey)
+- Check API quotas/limits in Google Cloud Console
+
+**Port already in use:**
+- Backend: Change port in `main.py` or use `python main.py --port 8001`
+- Frontend: Use `npm run dev -- --port 3001`
+
+---
