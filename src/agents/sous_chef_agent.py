@@ -1,6 +1,7 @@
 import warnings
 import logging
 import os
+
 import sys
 import uuid
 import json
@@ -81,7 +82,7 @@ def run_countdown_timer(time_in_seconds: int) -> dict:
     except Exception as e:
         logger.error(f"❌ Unexpected error in countdown: {e}")
         return {"status": "error", "message": f"Countdown error: {str(e)}"}
-
+      
 
 def exit_loop(tool_context: ToolContext):
     """Recipe completion handler"""
