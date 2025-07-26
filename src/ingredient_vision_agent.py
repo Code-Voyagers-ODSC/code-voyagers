@@ -1,39 +1,58 @@
-import os
+import google.generativeai as genai
 import json
+from PIL import Image
+import os
+import re
 from dotenv import load_dotenv
-from google.adk.agents import Agent
-from google.adk.llms import GeminiVisionModel
-from google.adk.runners import Runner
-from google.adk.media import Image
 
-# Step 1: Load environment
-load_dotenv()
+# Load your API key from .env
+load_dotenv(dotenv_path="src/.env")
+genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
 
-# Step 2: Define your vision agent
-ingredient_vision_agent = Agent(
-    name="ingredient_vision_agent",
-    model=GeminiVisionModel(model="models/gemini-1.5-pro-vision"),
-    system_instruction=(
-        "You are a helpful cooking assistant. "
-        "When shown an image of ingredients, analyze the image and respond with a clean, simple list "
-        "of all recognizable fruits or vegetables only. Do not include utensils, containers, or background objects."
-    ),
-)
+# Load image from disk
+def load_image(path):
+    if not os.path.exists(path):
+        raise FileNotFoundError(f"Image not found at {path}")
+    return Image.open(path)
 
-# Step 3: Load the image
-image_path = "fruit.jpg"  # Replace with your actual file path
-with open(image_path, "rb") as f:
-    image = Image.from_bytes(f.read(), mime_type="image/jpeg")
+# Ask Gemini to classify the object in the image
+def classify_image(image):
+    model = genai.GenerativeModel("gemini-1.5-flash")
+    response = model.generate_content([
+        "Classify the object in this image. Is it a fruit or vegetable? Name it specifically. Respond ONLY in JSON with keys: 'type' and 'name'.",
+        image
+    ])
+    return response.text
 
-# Step 4: Run the agent
-runner = Runner()
-response = runner.run(ingredient_vision_agent, image)
+# Clean the markdown wrapping from the Gemini output
+def extract_json(text):
+    text = text.strip()
+    if text.startswith("```json"):
+        text = text[len("```json"):].strip()
+    if text.endswith("```"):
+        text = text[:-3].strip()
+    match = re.search(r'{[\s\S]*}', text)
+    return match.group(0) if match else None
 
-# Step 5: Save to JSON
-ingredients_list = [item.strip("- ").strip() for item in response.text.split("\n") if item.strip()]
-output_data = {"recognized_items": ingredients_list}
+if __name__ == "__main__":
+    image_path = "images/fruit.jpg"
+    image = load_image(image_path)
+    result = classify_image(image)
 
-with open("recognized_fruits_veggies.json", "w") as f:
-    json.dump(output_data, f, indent=2)
+    json_str = extract_json(result)
+    if not json_str:
+        print("Could not extract JSON from model output:")
+        print(result)
+    else:
+        try:
+            parsed = json.loads(json_str)
+            print(json.dumps(parsed, indent=2))
+            
+            # Save to output.json
+            with open("output.json", "w") as f:
+                json.dump(parsed, f, indent=2)
+                print("\n✅ JSON saved to output.json")
 
-print("Saved to recognized_fruits_veggies.json")
+        except json.JSONDecodeError:
+            print("Failed to parse extracted JSON:")
+            print(json_str)
