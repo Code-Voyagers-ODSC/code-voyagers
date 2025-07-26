@@ -1,3 +1,5 @@
+# src/backend/tools/search_tool.py
+
 from duckduckgo_search import DDGS
 
 def web_search_recipes_tool(ingredients: list[str]) -> list[dict]:

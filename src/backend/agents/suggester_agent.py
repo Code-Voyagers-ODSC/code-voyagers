@@ -1,4 +1,4 @@
-# agents/suggester_agent.py
+# src/backend/agents/suggester_agent.py
 
 import json
 import sys
@@ -16,7 +16,7 @@ from google.adk.sessions import InMemorySessionService
 from google.adk.runners import Runner
 from google.genai import types
 
-from src.tools.search_tool import web_search_recipes_tool
+from tools.search_tool import web_search_recipes_tool
 
 load_dotenv(here(".env"))
 

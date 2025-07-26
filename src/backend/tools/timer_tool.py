@@ -1,4 +1,4 @@
-# tools/timer_tool.py - Shared timer functions
+# src/backend/tools/timer_tool.py
 
 import re
 from datetime import datetime, timezone

@@ -1,4 +1,4 @@
-# agents/ingredient_vision_agent.py
+# src/backend/agents/ingredient_vision_agent.py
 
 import io
 import json
