@@ -1,5 +1,4 @@
 from duckduckgo_search import DDGS
-import re
 
 def web_search_recipes_tool(ingredients: list[str]) -> list[dict]:
     # Try multiple search strategies
