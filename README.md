@@ -1,5 +1,7 @@
 # Super Spoon - Your Intelligent Sous Chef Agent
 
+![Super Spoon](images/super_spoon.png)
+
 An AI-powered recipe assistant that finds recipes based on your ingredients and provides step-by-step cooking guidance. Features ingredient detection from photos using Google Gemini Vision and intelligent recipe recommendations.
 
 ## ✨ Features
