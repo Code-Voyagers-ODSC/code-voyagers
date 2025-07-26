@@ -4,4 +4,5 @@ requests
 openai==0.28
 python-dotenv
 ddgs
+duckduckgo-search
 google-generativeai
