@@ -18,11 +18,10 @@ def load_image(path):
 # Ask Gemini to classify the object in the image
 def classify_image(image):
     model = genai.GenerativeModel("gemini-1.5-flash")
-    response = model.generate_content([
-    "Look at the image and detect all visible food items. For each, classify what type of food it is, and name it specifically. Respond ONLY in JSON as a list of objects, where each object has the keys: 'type' and 'name'.",
-    image
-    ])
+    response = model.generate_content(["Look at the image and detect all visible food items. Respond ONLY with a JSON list of strings like: [\"chicken\", \"rice\", \"vegetables\"]", image])
     return response.text
+
+# Look at the image and detect all visible food items. For each, classify what type of food it is, and name it specifically. Respond ONLY in JSON as a list of objects, where each object has the keys: 'type' and 'name'."
 
 # Clean the markdown wrapping from the Gemini output
 def extract_json(text):
