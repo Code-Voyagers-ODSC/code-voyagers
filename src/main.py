@@ -18,14 +18,31 @@ from google.adk.tools import ToolContext
 from google.adk.tools.base_tool import BaseTool
 from google.adk.runners import Runner
 from google.adk.sessions import InMemorySessionService
+from google.adk.memory import InMemoryMemoryService
 from google.genai.types import Content, Part
 from loguru import logger
 
 # Import agents
 from agents.suggester_agent import smart_recipe_search_handler, extract_sous_chef_dict
 
+# Recipe Memory Service
+class RecipeMemoryService:
+    def __init__(self):
+        self.memory_service = InMemoryMemoryService()
+        self.session_service = InMemorySessionService()
+    
+    async def add_session_to_memory(self, session):
+        """Add a completed cooking session to memory"""
+        await self.memory_service.add_session_to_memory(session)
+    
+    def get_memory_service(self):
+        return self.memory_service
+    
+    def get_session_service(self):
+        return self.session_service
+
 # Suppress warnings
-warnings.filterwarnings('ignore')
+warnings.filterwarnings("ignore")
 logging.getLogger("google").setLevel(logging.ERROR)
 
 # Configure logger
@@ -55,8 +72,8 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Global session service for cooking sessions
-cooking_session_service = InMemorySessionService()
+# Global services
+recipe_memory_service = RecipeMemoryService()
 active_runners: Dict[str, Runner] = {}
 
 # Pydantic models
@@ -214,25 +231,24 @@ sous_chef_agent = Agent(
         wait_for_user_confirmation,
         exit_loop
     ],
-    instruction="""
-    You are a friendly Sous Chef helping users cook step by step through a web interface.
+    instruction="""You are a friendly Sous Chef helping users cook step by step through a web interface.
 
-    WORKFLOW:
-    1. **First interaction**: Greet user, call get_current_step, present step clearly, call wait_for_user_confirmation
-    2. **When user says 'next'**: Call advance_step, get_current_step, present new step, handle timers if needed
-    3. **Timer handling**: When step mentions timing, call parse_timer_duration, then web_timer_tool to start timer
-    4. **Completion**: When get_current_step returns completion phrase, call exit_loop and congratulate user
+WORKFLOW:
+1. **First interaction**: Greet user, call get_current_step, present step clearly, call wait_for_user_confirmation
+2. **When user says 'next'**: Call advance_step, get_current_step, present new step, handle timers if needed
+3. **Timer handling**: When step mentions timing, call parse_timer_duration, then web_timer_tool to start timer
+4. **Completion**: When get_current_step returns completion phrase, call exit_loop and congratulate user
 
-    TIMER WORKFLOW:
-    - Parse timer duration from step text
-    - Start timer with web_timer_tool 
-    - Inform user that timer is running and they can continue when ready
+TIMER WORKFLOW:
+- Parse timer duration from step text
+- Start timer with web_timer_tool 
+- Inform user that timer is running and they can continue when ready
 
-    MESSAGING:
-    - Be encouraging and friendly
-    - Keep responses concise but helpful
-    - Don't repeat confirmation messages
-    - Include timing information clearly in steps"""
+MESSAGING:
+- Be encouraging and friendly
+- Keep responses concise but helpful
+- Don't repeat confirmation messages
+- Include timing information clearly in steps"""
 )
 
 # Helper functions
@@ -301,7 +317,7 @@ async def start_cooking_session(request: StartCookingRequest) -> CookingResponse
             "timer_active": False
         }
         
-        session = await cooking_session_service.create_session(
+        session = await recipe_memory_service.get_session_service().create_session(
             app_name=APP_NAME,
             user_id="web_user",
             session_id=session_id,
@@ -311,7 +327,7 @@ async def start_cooking_session(request: StartCookingRequest) -> CookingResponse
         # Create runner for this session
         runner = Runner(
             agent=sous_chef_agent,
-            session_service=cooking_session_service,
+            session_service=recipe_memory_service.get_session_service(),
             app_name=APP_NAME
         )
         active_runners[session_id] = runner
@@ -338,7 +354,7 @@ async def start_cooking_session(request: StartCookingRequest) -> CookingResponse
                 break
         
         # Get updated session state
-        updated_session = await cooking_session_service.get_session(
+        updated_session = await recipe_memory_service.get_session_service().get_session(
             app_name=APP_NAME, user_id="web_user", session_id=session_id
         )
         
@@ -391,15 +407,16 @@ async def cooking_interaction(request: CookingInteraction) -> CookingResponse:
                 break
         
         # Get updated session state
-        session = await cooking_session_service.get_session(
+        session = await recipe_memory_service.get_session_service().get_session(
             app_name=APP_NAME, user_id="web_user", session_id=request.session_id
         )
         
         timer_info = get_timer_info(session.state)
         recipe_completed = session.state.get("recipe_completed", False)
         
-        # Clean up if recipe is completed
+        # If recipe completed, save to memory and clean up
         if recipe_completed and request.session_id in active_runners:
+            await recipe_memory_service.add_session_to_memory(session)
             del active_runners[request.session_id]
         
         return CookingResponse(
@@ -418,7 +435,7 @@ async def cooking_interaction(request: CookingInteraction) -> CookingResponse:
 async def get_cooking_status(session_id: str):
     """Get current status of a cooking session"""
     try:
-        session = await cooking_session_service.get_session(
+        session = await recipe_memory_service.get_session_service().get_session(
             app_name=APP_NAME, user_id="web_user", session_id=session_id
         )
         
