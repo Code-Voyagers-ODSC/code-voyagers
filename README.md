@@ -1,197 +1,157 @@
-# AI Recipe Suggester with Interactive Cooking Guide
+# Super Spoon - Your Intelligent Sous Chef Agent
 
-An intelligent recipe suggestion system that finds recipes based on your ingredients and provides step-by-step cooking guidance, plus an image-based ingredient detector for added convenience.
+An AI-powered recipe assistant that finds recipes based on your ingredients and provides step-by-step cooking guidance. Features ingredient detection from photos using Google Gemini Vision and intelligent recipe recommendations.
 
-## Features
+## ✨ Features
 
-* 🔍 **Smart Recipe Search:** Uses Google's Gemini AI to find recipes matching your ingredients.
-* 🖼️ **Ingredient Vision Agent:** Upload food photos to auto-detect ingredients via a Google Gemini Vision model.
-* 👨‍🍳 **Interactive Cooking Mode:** Step-by-step guidance through each recipe.
-* ⏰ **Built-in Timers:** Automatic timer detection and countdown for cooking steps.
-* 🛡️ **Food Safety Tips:** Includes temperature guidelines and safe handling practices.
-* 📱 **Responsive Design:** Works on desktop and mobile devices.
+- 🔍 **Smart Recipe Search**: Uses Google's Gemini AI to find recipes matching your ingredients
+- 🖼️ **Ingredient Vision Agent**: Upload food photos to auto-detect ingredients via Google Gemini Vision model
+- 👨🍳 **Interactive Cooking Mode**: Step-by-step guidance through each recipe
+- ⏰ **Built-in Timers**: Automatic timer detection and countdown for cooking steps
+- 🛡️ **Food Safety Tips**: Includes temperature guidelines and safe handling practices
+- 📱 **Responsive Design**: Works on desktop and mobile devices
 
-## Architecture
+## 🧑‍🍳 Using the Agent
 
-* **Backend:** FastAPI + Google ADK (Agent Development Kit)
-* **Vision Agent:** Multimodal Google Gemini Pro Vision model for image-to-ingredient detection
-* **Frontend:** Next.js / React
-* **AI Models:** Google Gemini 2.5 Flash
-* **Search:** DuckDuckGo for web recipe search
+### Basic Recipe Search
+1. Open `http://localhost:8081` in your browser
+2. Enter ingredients manually or upload a food photo
+3. Click "Search Recipes" to get AI-powered suggestions
+4. Select a recipe to start interactive cooking mode
+5. Press the "Next" button to move to the next step
 
-## Quick Start
+## 📋 Prerequisites
 
-### Prerequisites
+- **Python**: 3.8 or higher
+- **Node.js**: 16.0 or higher
+- **uv**: Modern Python package manager (recommended) - [Install uv](https://docs.astral.sh/uv/getting-started/installation/)
+- **Google Gemini API Key** - Get one from [Google AI Studio](https://makersuite.google.com/app/apikey)
 
-* Python 3.8+
-* Node.js 16+
-* Google Gemini API key
+## 🚀 Quick Start
 
-### Backend Setup
+### 1. Clone & Setup
 
-1. **Clone the repository**
-
-   ```bash
-   git clone https://github.com/your-org/recipe-suggestor.git
-   cd recipe-suggestor
-   ```
-2. **Create and activate a virtual environment**
-
-   ```bash
-   python -m venv venv
-   source venv/bin/activate   # Windows: venv\Scripts\activate
-   ```
-3. **Install dependencies**
-
-   ```bash
-   pip install -r requirements.txt
-   pip install pillow google-generativeai
-   ```
-4. **Set up environment variables**
-
-   ```bash
-   echo "GEMINI_API_KEY=your-api-key-here" > .env
-   ```
-5. **Run the backend server**
-
-   ```bash
-   cd src
-   uvicorn main:app --reload --port 8000
-   ```
-
-### Frontend Setup
-
-1. **Navigate to frontend directory**
-
-   ```bash
-   cd ../frontend
-   ```
-2. **Install dependencies**
-
-   ```bash
-   npm install
-   ```
-3. **Run the development server**
-
-   ```bash
-   npm run dev
-   ```
-4. Visit **[http://localhost:8081](http://localhost:8081)** in your browser.
-
-## Usage
-
-1. Upload a food image or manually enter ingredients.
-2. Click **Search Recipes** to find matching recipes.
-3. Click a recipe to view details.
-4. Click **Start Cooking** for interactive, step-by-step guidance.
-
-## API Endpoints
-
-### Search Recipes
-
-```http
-POST /agent/smart-search
-Content-Type: application/json
-
-{"ingredients": ["chicken","pasta","garlic"]}
+```bash
+git clone https://github.com/Code-Voyagers-ODSC/code-voyagers.git
+cd code-voyagers
 ```
 
-### Detect Ingredients from Image
+### 2. Backend Setup
 
-```http
-POST /agent/detect-ingredients
-Content-Type: multipart/form-data
+#### Install Dependencies
 
-FormData: file=<image file>
+**Option A: Using uv (Recommended)**
+```bash
+# Install uv package manager if needed
+curl -LsSf https://astral.sh/uv/install.sh | sh
 
-Response: {"ingredients": ["tomato","basil","mozzarella"]}
+# Install dependencies automatically
+uv sync
+
+# Activate virtual environment
+source .venv/bin/activate  # macOS/Linux
+# or
+.venv\Scripts\activate     # Windows
 ```
 
-### Start Cooking Session
+**Option B: Using pip**
+```bash
+# Create virtual environment
+python -m venv venv
+source venv/bin/activate   # macOS/Linux
+# or
+venv\Scripts\activate      # Windows
 
-```http
-POST /cooking/start
-Content-Type: application/json
-
-{
-  "sous_chef_format": {
-    "name": "Recipe Name",
-    "steps": {"1":"First step","2":"Second step"}
-  }
-}
+# Install dependencies
+pip install -r requirements.txt
 ```
 
-### Next Cooking Step
-
-```http
-POST /cooking/next
-Content-Type: application/json
-
-{"session_id":"<uuid>","command":"next"}
+#### Configure API Key
+```bash
+# Create .env file with your API key
+echo "GEMINI_API_KEY=your-api-key-here" > .env
 ```
 
-### Get Session Status
+### 3. Run the Agent
 
-```http
-GET /cooking/status/{session_id}
+#### Start Backend (Primary Method)
+```bash
+cd src
+python main.py
 ```
 
-## Project Structure
+**Alternative (if main.py doesn't work directly):**
+```bash
+cd src
+uvicorn main:app --reload --port 8000
+```
+
+The backend will be available at `http://localhost:8000`
+
+#### Start Frontend
+```bash
+# In a new terminal
+cd frontend
+npm install
+npm run dev
+```
+
+The frontend will be available at `http://localhost:8081`
+
+## 📦 Dependencies
+
+### Core Backend Dependencies
+- **FastAPI** - Web framework for the API
+- **Google Generative AI** - Gemini models for recipe suggestions and vision
+- **Pillow** - Image processing for ingredient detection
+- **uvicorn** - ASGI server for running the API
+
+### Frontend Dependencies
+- **Next.js** - React framework for the UI
+- **React** - Frontend library
+- **TailwindCSS** - Styling
+
+## 🛠️ Project Structure
 
 ```
-CODE-VOYAGERS/
-
+code-voyagers/
 ├── src/
-│   ├── main.py
+│   ├── main.py                     # FastAPI app entry point (run this!)
 │   ├── agents/
-│   │   ├── suggester_agent.py
-│   │   ├── ingredient_vision_agent.py
-│   │   └── sous_chef_agent.py
+│   │   ├── suggester_agent.py      # Recipe AI agent
+│   │   ├── ingredient_vision_agent.py  # Photo ingredient detection
+│   │   └── sous_chef_agent.py      # Cooking guidance agent
 │   └── tools/
-│       └── search_tool.py
-│       └── timer_tool.py  
-└── requirements.txt
-└── README.md
+│       ├── search_tool.py          # Recipe search functionality
+│       └── timer_tool.py           # Cooking timers
+├── frontend/                       # Next.js React app
+├── requirements.txt                # Python dependencies
+├── pyproject.toml                 # uv configuration
+└── .env                           # API keys (create this)
 ```
 
-## Key Features Explained
+## 🔧 Troubleshooting
 
-### Intelligent Recipe Matching
+**Backend won't start:**
+- Ensure Python 3.8+ is installed: `python --version`
+- Check virtual environment is activated (see `(.venv)` or `(venv)` in terminal)
+- Verify API key is set: `cat .env` (should show your Gemini API key)
 
-* Searches the web for recipes containing your ingredients.
-* AI analyzes and structures the results into summaries and detailed steps.
+**"ModuleNotFoundError":**
+- Make sure you're in the activated virtual environment
+- Try: `pip install -r requirements.txt` (even if using uv)
 
-### Ingredient Vision Agent
+**Frontend issues:**
+- Confirm backend is running on port 8000
+- Check Node.js version: `node --version` (need 16+)
+- Try: `npm install --force` if dependency issues
 
-* Upload a photo of your ingredients or pantry.
-* The vision agent (Gemini Pro Vision) detects visible food items.
-* Returns a JSON list of ingredients to seed your search.
+**API errors:**
+- Verify your Gemini API key is valid at [Google AI Studio](https://aistudio.google.com/app/apikey)
+- Check API quotas/limits in Google Cloud Console
 
-### Interactive Cooking Mode
+**Port already in use:**
+- Backend: Change port in `main.py` or use `python main.py --port 8001`
+- Frontend: Use `npm run dev -- --port 3001`
 
-* Guides you through each step of the recipe.
-* Detects timer requirements automatically.
-* Tracks progress with visual indicators and timers.
-
-## Troubleshooting
-
-* **Backend won't start**: Ensure Python 3.8+, dependencies installed, and `.env` contains `GEMINI_API_KEY`.
-* **Vision endpoint errors**: Verify `pillow` and `google-generativeai` are installed and the key is valid.
-* **Frontend issues**: Confirm backend is running on port 8000 and CORS settings are correct.
-
-## Future Enhancements
-
-* User accounts and saved recipes
-* Shopping list generation
-* Nutritional information
-* Voice enabled step-by-step cooking guidance
-* Recipe rating and feedback
-* Multi-language support
-
-## Contributing
-
-Contributions welcome! Please open issues or pull requests for bugs and enhancements.
-
-## License
-
-MIT License
+---
