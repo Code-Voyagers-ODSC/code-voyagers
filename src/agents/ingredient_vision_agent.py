@@ -1,6 +1,5 @@
 # agents/ingredient_vision_agent.py
 
-import base64
 import io
 import json
 import os
