@@ -65,10 +65,12 @@ class Recipe(BaseModel):
 class RecipeResponse(BaseModel):
     recipes: List[Recipe] = Field(description="List of 3-4 best matching recipes")
 
+MODEL = "gemini-2.5-flash"
+
 # Define the Agent WITHOUT structured output (since we're using tools)
 recipe_agent = LlmAgent(
     name="recipe_suggester",
-    model="gemini-2.0-flash",
+    model=MODEL,
     instruction=(
         "You are a cooking assistant. From the search results, select the 3-4 best recipes that match the requested ingredients. "
         "Be flexible - if a recipe contains most of the ingredients or similar ingredients, include it.\n\n"

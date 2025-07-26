@@ -5,7 +5,7 @@ An intelligent recipe suggestion system that finds recipes based on your ingredi
 ## Features
 
 * 🔍 **Smart Recipe Search:** Uses Google's Gemini AI to find recipes matching your ingredients.
-* 🖼️ **Ingredient Vision Agent:** Upload food photos to auto-detect ingredients via Google Gemini Pro Vision model.
+* 🖼️ **Ingredient Vision Agent:** Upload food photos to auto-detect ingredients via a Google Gemini Vision model.
 * 👨‍🍳 **Interactive Cooking Mode:** Step-by-step guidance through each recipe.
 * ⏰ **Built-in Timers:** Automatic timer detection and countdown for cooking steps.
 * 🛡️ **Food Safety Tips:** Includes temperature guidelines and safe handling practices.
@@ -16,7 +16,7 @@ An intelligent recipe suggestion system that finds recipes based on your ingredi
 * **Backend:** FastAPI + Google ADK (Agent Development Kit)
 * **Vision Agent:** Multimodal Google Gemini Pro Vision model for image-to-ingredient detection
 * **Frontend:** Next.js / React
-* **AI Models:** Google Gemini 2.0 Flash (text), Gemini Pro Vision (images)
+* **AI Models:** Google Gemini 2.5 Flash
 * **Search:** DuckDuckGo for web recipe search
 
 ## Quick Start

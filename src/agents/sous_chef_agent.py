@@ -40,7 +40,7 @@ if not api_key:
     raise ValueError("GEMINI_API_KEY environment variable not set.")
 genai.configure(api_key=api_key)
 
-MODEL = "gemini-2.0-flash"
+MODEL = "gemini-2.5-flash"
 COMPLETION_PHRASE = "The recipe is finished."
 APP_NAME = "sous_chef_test_app"
 USER_ID = "test_user"

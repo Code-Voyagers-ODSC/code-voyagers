@@ -18,9 +18,10 @@ if not api_key:
     raise RuntimeError("GEMINI_API_KEY not set in .env")
 genai.configure(api_key=api_key)
 
+MODEL = "gemini-2.5-flash"
+
 class IngredientVisionAgent:
-    def __init__(self, model_name: str = "gemini-2.0-flash"):
-        # “gemini-pro-vision” is the multimodal‑capable variant
+    def __init__(self, model_name: str = MODEL):
         self.model = genai.GenerativeModel(model_name)
 
     def _prompt(self) -> str:
