@@ -1,31 +1,15 @@
-# requirements.txt for backend
-
-# FastAPI and server
-fastapi
-uvicorn
-
-# Core dependencies
-pydantic
-python-dotenv
-
-# Google ADK and Gemini
-google-genai
-google-adk
-google-generativeai
-
-# Search functionality
-duckduckgo-search
-
-# Utilities
-pyprojroot
-loguru
-
-# For CORS and async file uploads
-python-multipart
-aiofiles
-
-# Optional: faster JSON serialization
-orjson
-
-# Image processing (provides the PIL namespace)
-pillow
+altgraph @ file:///AppleInternal/Library/BuildRoots/2c89a47b-9dd5-11ef-938f-6e654a286000/Library/Caches/com.apple.xbs/Sources/python3/altgraph-0.17.2-py2.py3-none-any.whl
+boto3==1.26.137
+botocore==1.29.165
+certifi==2024.12.14
+charset-normalizer==3.4.1
+future @ file:///AppleInternal/Library/BuildRoots/2c89a47b-9dd5-11ef-938f-6e654a286000/Library/Caches/com.apple.xbs/Sources/python3/future-0.18.2-py3-none-any.whl
+idna==3.10
+jmespath==1.0.1
+macholib @ file:///AppleInternal/Library/BuildRoots/2c89a47b-9dd5-11ef-938f-6e654a286000/Library/Caches/com.apple.xbs/Sources/python3/macholib-1.15.2-py2.py3-none-any.whl
+python-dateutil==2.9.0.post0
+python-dotenv==1.0.0
+requests==2.28.2
+s3transfer==0.6.2
+six @ file:///AppleInternal/Library/BuildRoots/2c89a47b-9dd5-11ef-938f-6e654a286000/Library/Caches/com.apple.xbs/Sources/python3/six-1.15.0-py2.py3-none-any.whl
+urllib3==1.26.20
