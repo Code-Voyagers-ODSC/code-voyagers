@@ -1,4 +1,30 @@
-{
-  "type": "fruit",
-  "name": "tomatoes"
-}
+[
+  {
+    "type": "fruit",
+    "name": "lemon"
+  },
+  {
+    "type": "fruit",
+    "name": "lemon"
+  },
+  {
+    "type": "fruit",
+    "name": "lemon"
+  },
+  {
+    "type": "fruit",
+    "name": "orange"
+  },
+  {
+    "type": "fruit",
+    "name": "orange"
+  },
+  {
+    "type": "vegetable",
+    "name": "garlic"
+  },
+  {
+    "type": "vegetable",
+    "name": "potato"
+  }
+]

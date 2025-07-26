@@ -19,8 +19,8 @@ def load_image(path):
 def classify_image(image):
     model = genai.GenerativeModel("gemini-1.5-flash")
     response = model.generate_content([
-        "Classify the object in this image. Is it a fruit or vegetable? Name it specifically. Respond ONLY in JSON with keys: 'type' and 'name'.",
-        image
+    "Look at the image and detect all visible food items. For each, classify whether it's a fruit or vegetable, and name it specifically. Respond ONLY in JSON as a list of objects, where each object has the keys: 'type' and 'name'.",
+    image
     ])
     return response.text
 
@@ -31,7 +31,7 @@ def extract_json(text):
         text = text[len("```json"):].strip()
     if text.endswith("```"):
         text = text[:-3].strip()
-    match = re.search(r'{[\s\S]*}', text)
+    match = re.search(r'(\[.*\]|\{.*\})', text, re.DOTALL)
     return match.group(0) if match else None
 
 if __name__ == "__main__":
