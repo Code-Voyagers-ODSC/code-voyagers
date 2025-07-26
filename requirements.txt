@@ -5,4 +5,5 @@ openai==0.28
 python-dotenv
 ddgs
 google-adk>=1.8.0
+duckduckgo-search
 google-generativeai
