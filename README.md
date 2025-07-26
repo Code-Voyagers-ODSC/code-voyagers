@@ -1,5 +1,7 @@
 # Super Spoon - Your Intelligent Sous Chef Agent
 
+![Super Spoon](images/super_spoon.png)
+
 An AI-powered recipe assistant that finds recipes based on your ingredients and provides step-by-step cooking guidance. Features ingredient detection from photos using Google Gemini Vision and intelligent recipe recommendations.
 
 ## ✨ Features
@@ -10,6 +12,21 @@ An AI-powered recipe assistant that finds recipes based on your ingredients and 
 - ⏰ **Built-in Timers**: Automatic timer detection and countdown for cooking steps
 - 🛡️ **Food Safety Tips**: Includes temperature guidelines and safe handling practices
 - 📱 **Responsive Design**: Works on desktop and mobile devices
+
+## App Screenshots
+
+<details>
+<summary>Click to view screenshots</summary>
+
+<a href="images/Home Page.png"><img src="images/Home Page.png" alt="Super Spoon Home Screen" width="400" /></a>
+
+<a href="images/Detail Page.png"><img src="images/Detail Page.png" alt="Recipe Search Results" width="400" /></a>
+
+<a href="images/List Page.png"><img src="images/List Page.png" alt="Interactive Cooking Mode" width="400" /></a>
+
+<a href="images/Timer Page.png"><img src="images/Timer Page.png" alt="Built-in Timer Popup" width="400" /></a>
+
+</details>
 
 ## 🧑‍🍳 Using the Agent
 
@@ -29,16 +46,34 @@ An AI-powered recipe assistant that finds recipes based on your ingredients and 
 
 ## 🚀 Quick Start
 
-### 1. Clone & Setup
+### Option 1: Docker Compose
+
+```bash
+# Clone the repository
+git clone https://github.com/Code-Voyagers-ODSC/code-voyagers.git
+cd code-voyagers
+
+# Set up environment variables
+echo "GEMINI_API_KEY=your-api-key-here" > .env
+
+# Run with Docker Compose
+docker-compose up --build
+```
+
+Visit `http://localhost:8081` in your browser.
+
+### Option 2: Manual Setup
+
+#### 1. Clone & Setup
 
 ```bash
 git clone https://github.com/Code-Voyagers-ODSC/code-voyagers.git
 cd code-voyagers
 ```
 
-### 2. Backend Setup
+#### 2. Backend Setup
 
-#### Install Dependencies
+**Install Dependencies**
 
 **Option A: Using uv (Recommended)**
 ```bash
@@ -66,15 +101,15 @@ venv\Scripts\activate      # Windows
 pip install -r requirements.txt
 ```
 
-#### Configure API Key
+**Configure API Key**
 ```bash
 # Create .env file with your API key
 echo "GEMINI_API_KEY=your-api-key-here" > .env
 ```
 
-### 3. Run the Agent
+#### 3. Run the Agent
 
-#### Start Backend (Primary Method)
+**Start Backend (Primary Method)**
 ```bash
 cd src
 python main.py
@@ -88,7 +123,7 @@ uvicorn main:app --reload --port 8000
 
 The backend will be available at `http://localhost:8000`
 
-#### Start Frontend
+**Start Frontend**
 ```bash
 # In a new terminal
 cd frontend
