@@ -1,30 +1,6 @@
 [
-  {
-    "type": "fruit",
-    "name": "lemon"
-  },
-  {
-    "type": "fruit",
-    "name": "lemon"
-  },
-  {
-    "type": "fruit",
-    "name": "lemon"
-  },
-  {
-    "type": "fruit",
-    "name": "orange"
-  },
-  {
-    "type": "fruit",
-    "name": "orange"
-  },
-  {
-    "type": "vegetable",
-    "name": "potatoes"
-  },
-  {
-    "type": "vegetable",
-    "name": "garlic"
-  }
+  "lemons",
+  "oranges",
+  "potatoes",
+  "garlic"
 ]
