@@ -37,5 +37,6 @@ Below, sketch (ASCII, hand-drawn JPEG/PNG pasted in, or ASCII art) the high-leve
 
 5. **Observability**  
    - Logging of each reasoning step  
+   Loguru library used in sous-chef-agent.py and timer-tool.py
    - Error handling / retries
 
