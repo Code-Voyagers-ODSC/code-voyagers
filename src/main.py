@@ -1,10 +1,12 @@
+# src/main.py
+
 import warnings
 import logging
 import os
 import sys
 from datetime import datetime, timezone
 from typing import Optional, List
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, File, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 import google.generativeai as genai
@@ -23,6 +25,7 @@ from google.adk.sessions import InMemorySessionService
 # Import agents and handlers
 from agents.suggester_agent import smart_recipe_search_handler
 from agents.sous_chef_agent import CookingAgentHandler
+from agents.ingredient_vision_agent import ingredient_vision_agent
 
 warnings.filterwarnings("ignore")
 logging.getLogger("google").setLevel(logging.ERROR)
@@ -52,6 +55,7 @@ class RecipeMemoryService:
         self.memory_service = InMemoryMemoryService()
         self.session_service = InMemorySessionService()
         self.stored_recipes = {}
+        self.stored_ingredients = []
     
     async def add_session_to_memory(self, session):
         """Add a completed cooking session to memory"""
@@ -68,6 +72,25 @@ class RecipeMemoryService:
     
     def get_recipe(self, recipe_id: str):
         return self.stored_recipes.get(recipe_id)
+    
+    def add_ingredients(self, ingredients: List[str]):
+        """Add ingredients to memory"""
+        self.stored_ingredients.extend(ingredients)
+        # Remove duplicates while preserving order
+        seen = set()
+        self.stored_ingredients = [x for x in self.stored_ingredients if not (x in seen or seen.add(x))]
+    
+    def set_ingredients(self, ingredients: List[str]):
+        """Replace all stored ingredients"""
+        self.stored_ingredients = ingredients
+    
+    def get_ingredients(self) -> List[str]:
+        """Get all stored ingredients"""
+        return self.stored_ingredients.copy()
+    
+    def clear_ingredients(self):
+        """Clear all stored ingredients"""
+        self.stored_ingredients = []
 
 # Initialize shared services
 recipe_memory_service = RecipeMemoryService()
@@ -156,20 +179,84 @@ def home():
     return {"message": "Cooking Assistant API is running!"}
 
 
+@app.post("/agent/detect-ingredients")
+async def detect_ingredients_from_image(file: UploadFile = File(...)):
+    """Detect ingredients from any uploaded image and store in memory"""
+    try:
+        # Read image file
+        contents = await file.read()
+        
+        # Detect ingredients using vision agent
+        ingredients = ingredient_vision_agent.detect_ingredients_from_bytes(contents)
+        
+        # Store ingredients in memory
+        recipe_memory_service.add_ingredients(ingredients)
+        
+        return {
+            "detected_ingredients": ingredients,
+            "all_ingredients": recipe_memory_service.get_ingredients()
+        }
+        
+    except Exception as e:
+        logger.error(f"Error detecting ingredients from image: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+
+
+
 @app.post("/agent/smart-search")
 async def smart_recipe_search(payload: IngredientList):
-    """Search for recipes and store them in cooking handler"""
+    """Search for recipes using stored ingredients plus any additional ingredients"""
     try:
-        recipe_response = await smart_recipe_search_handler(payload.ingredients)
+        # Combine stored ingredients with new ones
+        stored_ingredients = recipe_memory_service.get_ingredients()
+        all_ingredients = stored_ingredients + payload.ingredients
+        
+        # Remove duplicates while preserving order
+        seen = set()
+        unique_ingredients = [x for x in all_ingredients if not (x in seen or seen.add(x))]
+        
+        recipe_response = await smart_recipe_search_handler(unique_ingredients)
         
         # Store recipes in shared memory service
         for recipe in recipe_response["recipes"]:
             recipe_memory_service.store_recipe(recipe["id"], recipe["sous_chef_format"])
         
-        return recipe_response
+        return {
+            "searched_ingredients": unique_ingredients,
+            "recipes": recipe_response["recipes"]
+        }
     except Exception as e:
         logger.error(f"Error in smart search: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/ingredients")
+async def get_stored_ingredients():
+    """Get all stored ingredients from memory"""
+    return {"ingredients": recipe_memory_service.get_ingredients()}
+
+
+@app.post("/ingredients")
+async def add_ingredients_to_memory(payload: IngredientList):
+    """Add ingredients to memory"""
+    recipe_memory_service.add_ingredients(payload.ingredients)
+    return {"ingredients": recipe_memory_service.get_ingredients()}
+
+
+@app.put("/ingredients")
+async def set_ingredients_in_memory(payload: IngredientList):
+    """Replace all stored ingredients"""
+    recipe_memory_service.set_ingredients(payload.ingredients)
+    return {"ingredients": recipe_memory_service.get_ingredients()}
+
+
+@app.delete("/ingredients")
+async def clear_stored_ingredients():
+    """Clear all stored ingredients"""
+    recipe_memory_service.clear_ingredients()
+    return {"message": "Ingredients cleared"}
 
 
 @app.post("/cooking/start")
