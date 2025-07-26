@@ -268,15 +268,15 @@ async def start_cooking_session(request: StartCookingRequest) -> CookingResponse
         recipe_response = await smart_recipe_search_handler(request.ingredients)
 
         if (
-            not recipe_response.recipes
-            or len(recipe_response.recipes) <= request.recipe_index
+            not recipe_response["recipes"]
+            or len(recipe_response["recipes"]) <= request.recipe_index
         ):
             raise HTTPException(status_code=404, detail="Recipe not found")
 
-        selected_recipe = recipe_response.recipes[request.recipe_index]
+        selected_recipe = recipe_response["recipes"][request.recipe_index]
         sous_chef_recipe = {
-            "name": selected_recipe.sous_chef_format.name,
-            "steps": selected_recipe.sous_chef_format.steps,
+            "name": selected_recipe["sous_chef_format"]["name"],
+            "steps": selected_recipe["sous_chef_format"]["steps"],
         }
 
         session_id = str(uuid.uuid4())
