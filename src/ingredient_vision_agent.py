@@ -19,7 +19,7 @@ def load_image(path):
 def classify_image(image):
     model = genai.GenerativeModel("gemini-1.5-flash")
     response = model.generate_content([
-    "Look at the image and detect all visible food items. For each, classify whether it's a fruit or vegetable, and name it specifically. Respond ONLY in JSON as a list of objects, where each object has the keys: 'type' and 'name'.",
+    "Look at the image and detect all visible food items. For each, classify what type of food it is, and name it specifically. Respond ONLY in JSON as a list of objects, where each object has the keys: 'type' and 'name'.",
     image
     ])
     return response.text
@@ -35,7 +35,7 @@ def extract_json(text):
     return match.group(0) if match else None
 
 if __name__ == "__main__":
-    image_path = "images/fruit.jpg"
+    image_path = "images/fruit5.jpg"
     image = load_image(image_path)
     result = classify_image(image)
 
