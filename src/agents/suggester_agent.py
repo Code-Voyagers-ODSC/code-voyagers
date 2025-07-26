@@ -325,7 +325,7 @@ async def main():
                         print(f"      ... and {len(sous_chef.steps) - 3} more steps")
                 
                 # Test extraction functions
-                print(f"\n🔧 Testing extraction functions:")
+                print("\n🔧 Testing extraction functions:")
                 sous_chef_format = extract_sous_chef_format(response, 0)
                 if sous_chef_format:
                     print(f"   ✅ extract_sous_chef_format(): {sous_chef_format.name}")

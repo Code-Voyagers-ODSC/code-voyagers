@@ -12,3 +12,8 @@ dependencies = [
     "pydantic>=2.11.7",
     "pyprojroot>=0.3.0",
 ]
+
+[dependency-groups]
+dev = [
+    "ruff>=0.12.5",
+]
