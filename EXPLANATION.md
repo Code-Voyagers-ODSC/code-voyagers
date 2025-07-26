@@ -51,8 +51,11 @@
 ---
 
 ## 4. Observability & Testing
-
- 
+- Add log statements in each file for key events and errors.
+- Verify that the API key is set and valid before making requests.
+- Ensure the virtual environment is activated before running the application.
+- Log each reasoning step for easier debugging and traceability.
+- Use the Loguru library for structured and easy logging
 
 ---
 
